@@ -46,15 +46,50 @@
  * Introduced in version 2.3
  * Changed in version 2.6
  */
+ //void *(*init) (struct fuse_conn_info *conn);
+ void fuse_fs_init(struct fuse_fs *fs, struct fuse_conn_info *conn){
+ 	
+ 	
+ }
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
 void *sfs_init(struct fuse_conn_info *conn)
 {
-    fprintf(stderr, "in bb-init\n");
-    log_msg("\nsfs_init()\n");
+
     
     log_conn(conn);
     log_fuse_context(fuse_get_context());
 
-    return SFS_DATA;
+    return;
 }
 
 /**
