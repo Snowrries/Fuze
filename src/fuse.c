@@ -51,8 +51,16 @@
  	
  	
  }
- 
- 
+ /** Get file attributes.
+	 *
+	 * Similar to stat().  The 'st_dev' and 'st_blksize' fields are
+	 * ignored.	 The 'st_ino' field is ignored except if the 'use_ino'
+	 * mount option is given.
+	 */
+ int fuse_fs_getattr(struct fuse_fs *fs, const char *path, struct stat *buf){
+ 	
+ 	
+ }
  
  
  
