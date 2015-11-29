@@ -53,7 +53,11 @@ void *sfs_init(struct fuse_conn_info *conn)
     
     log_conn(conn);
     log_fuse_context(fuse_get_context());
-
+    /* 
+    Tony: Assignment Description Says we must store and organize
+    all our data into a flat file. 
+    */
+    //disk_open(*Our Virtual Disk File Here*)
     return SFS_DATA;
 }
 
@@ -67,6 +71,7 @@ void *sfs_init(struct fuse_conn_info *conn)
 void sfs_destroy(void *userdata)
 {
     log_msg("\nsfs_destroy(userdata=0x%08x)\n", userdata);
+    //disk_close()
 }
 
 /** Get file attributes.
@@ -83,6 +88,7 @@ int sfs_getattr(const char *path, struct stat *statbuf)
     log_msg("\nsfs_getattr(path=\"%s\", statbuf=0x%08x)\n",
 	  path, statbuf);
 
+    //Skeleton Code
     strcpy(fpath, SFS_DATA->rootdir);
     strncat(fpath, path, PATH_MAX);
 
@@ -113,13 +119,21 @@ int sfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
     int fd;
     log_msg("\nsfs_create(path=\"%s\", mode=0%03o, fi=0x%08x)\n",
 	    path, mode, fi);
+
+    //Skeleton Code
     fd = open(path,O_WRONLY|O_CREAT|O_TRUNC, mode);
     if (fd == -1){
       //We should log these errors
       return -errno;
     }
-
     fi->fh = fd;
+
+    /*
+    Tony: Use path to lookup where the file is located in our virtual disk.
+    If it cannot be found, we have write a new block to the virtual disk.
+    Then we open by returning the data block to a pointer given by the user; in this case
+    fi->fh (file handler)
+    */
     
     return retstat;
 }
@@ -154,14 +168,17 @@ int sfs_open(const char *path, struct fuse_file_info *fi)
     int fd;
     log_msg("\nsfs_open(path\"%s\", fi=0x%08x)\n",
   	    path, fi);
-    fd = open(path,fi->flags);
 
+    //Skeleton Code
+    fd = open(path,fi->flags);
     if(fd == -1){
       return -errno;
     }
-
     fi->fh = fd;
 
+    /*
+    Tony: Use path to located where the file is located in our virtual drive index.
+    */
     return retstat;
 }
 
@@ -206,11 +223,15 @@ int sfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse
     int retstat = 0;
     log_msg("\nsfs_read(path=\"%s\", buf=0x%08x, size=%d, offset=%lld, fi=0x%08x)\n",
 	    path, buf, size, offset, fi);
+
+    //Skeleton Code
     retstat = pread(fi->fh, buf, size, offset);
     if (retstat == -1){
       retstat = -errno;
     }
-   
+    /*Tony: We have to convert file handler to an index and determine location in our
+    virtual disk file.
+    */
     return retstat;
 }
 
@@ -232,6 +253,9 @@ int sfs_write(const char *path, const char *buf, size_t size, off_t offset,
     if (retstat == -1){
       retstat = -errno;
     }
+    /*
+    Tony: Similar to read.
+    */
     
     return retstat;
 }
@@ -304,6 +328,7 @@ int sfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offse
 {
     int retstat = 0;
     
+    // Tony: Fuck This Shit.
     
     return retstat;
 }
