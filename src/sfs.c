@@ -82,7 +82,16 @@ int sfs_getattr(const char *path, struct stat *statbuf)
     
     log_msg("\nsfs_getattr(path=\"%s\", statbuf=0x%08x)\n",
 	  path, statbuf);
-    
+
+    strcpy(fpath, SFS_DATA->rootdir);
+    strncat(fpath, path, PATH_MAX);
+
+    retstat = stat(fpath,statbuf);
+    if (retstat != 0){
+       log_msg("ERROR %s",strerror(errno));
+    }
+    //log_stat
+  
     return retstat;
 }
 
