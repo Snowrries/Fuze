@@ -91,7 +91,7 @@ int sfs_getattr(const char *path, struct stat *statbuf)
        log_msg("ERROR %s",strerror(errno));
     }
     //log_stat
-  
+
     return retstat;
 }
 
@@ -110,9 +110,16 @@ int sfs_getattr(const char *path, struct stat *statbuf)
 int sfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 {
     int retstat = 0;
+    int fd;
     log_msg("\nsfs_create(path=\"%s\", mode=0%03o, fi=0x%08x)\n",
 	    path, mode, fi);
-    
+    fd = open(path,O_WRONLY|O_CREAT|O_TRUNC, mode);
+    if (fd == -1){
+      //We should log these errors
+      return -errno;
+    }
+
+    fi->fh = fd;
     
     return retstat;
 }
@@ -122,7 +129,11 @@ int sfs_unlink(const char *path)
 {
     int retstat = 0;
     log_msg("sfs_unlink(path=\"%s\")\n", path);
-
+    retstat = unlink(path);
+    if (retstat == -1){
+      //Log this error 
+      return errno;
+    }
     
     return retstat;
 }
@@ -140,10 +151,17 @@ int sfs_unlink(const char *path)
 int sfs_open(const char *path, struct fuse_file_info *fi)
 {
     int retstat = 0;
+    int fd;
     log_msg("\nsfs_open(path\"%s\", fi=0x%08x)\n",
-	    path, fi);
+  	    path, fi);
+    fd = open(path,fi->flags);
 
-    
+    if(fd == -1){
+      return -errno;
+    }
+
+    fi->fh = fd;
+
     return retstat;
 }
 
@@ -167,6 +185,7 @@ int sfs_release(const char *path, struct fuse_file_info *fi)
     log_msg("\nsfs_release(path=\"%s\", fi=0x%08x)\n",
 	  path, fi);
     
+    close(fi->fh);
 
     return retstat;
 }
@@ -187,7 +206,10 @@ int sfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse
     int retstat = 0;
     log_msg("\nsfs_read(path=\"%s\", buf=0x%08x, size=%d, offset=%lld, fi=0x%08x)\n",
 	    path, buf, size, offset, fi);
-
+    retstat = pread(fi->fh, buf, size, offset);
+    if (retstat == -1){
+      retstat = -errno;
+    }
    
     return retstat;
 }
@@ -206,7 +228,10 @@ int sfs_write(const char *path, const char *buf, size_t size, off_t offset,
     int retstat = 0;
     log_msg("\nsfs_write(path=\"%s\", buf=0x%08x, size=%d, offset=%lld, fi=0x%08x)\n",
 	    path, buf, size, offset, fi);
-    
+    retstat = pwrite(fi->fh, buf, size, offset);
+    if (retstat == -1){
+      retstat = -errno;
+    }
     
     return retstat;
 }
