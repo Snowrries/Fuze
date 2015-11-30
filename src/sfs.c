@@ -46,6 +46,22 @@
  * Introduced in version 2.3
  * Changed in version 2.6
  */
+
+ 
+//This should go in another file
+struct inode {
+  
+  struct inode *i_next, *i_prev;
+  struct inode *i_dir_next, *i_dir,prev;
+
+  int uid;
+  int size;
+  int timeaccessed; //that have this time stuff in linux inodes
+  long blocks;
+  struct stat   *stat;
+  //I have no idea vhat I am do.
+};
+
 void *sfs_init(struct fuse_conn_info *conn)
 {
     fprintf(stderr, "in bb-init\n");
@@ -57,7 +73,10 @@ void *sfs_init(struct fuse_conn_info *conn)
     Tony: Assignment Description Says we must store and organize
     all our data into a flat file. 
     */
-    //disk_open(*Our Virtual Disk File Here*)
+    disk_open((SFS_DATA)->diskfile);
+    /*
+    Have to set block sizes, buffer sizes, max write/reads, inodes
+    */
     return SFS_DATA;
 }
 
