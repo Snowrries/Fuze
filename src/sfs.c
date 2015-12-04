@@ -68,30 +68,26 @@ in the inode.
 
 //This should go in another file
 
- #define IFILE 0
- #define IDIR 1
+ #define IFILE 0 //Inode is a file
+ #define IDIR 1  //Inode is a directory
 
  #define MAX_NODES ((BLOCK_SIZE*64)/sizeof(struct inode)) //64 is arbitrary
  
 
- //Used for directories
- struct dirent{
- 	int file_serial_number; //Distinguish this file from all other files on device
- 	char d_name[]; //File name
- 	//Needs more stuff here
- };
 
-//Used for files
 struct inode {
+  //Universal to all Inodes
   int inode_number;
-  struct inode *i_next,* i_prev;
   struct icommon *on-disk;
   int uid;
   int size;
   int inodetype;
   int db_addr[12]; //datablock addresses
   char path[64]; //this defeats the purpose of doing address calcs. Need to change latur
-  //I have no idea vhat I am do.
+
+  //Things Specific to directory Inodes
+
+  //Things Specfic to file Inodes
 };
 
 //First thing in our memory/disk
