@@ -47,6 +47,25 @@
  * Changed in version 2.6
  */
 
+
+/*
+Idea is to use statically allocated inodes for now. That means a limited number of 
+things to work with.  With a large amount of files we might have problems providing
+inodes for all our files.
+
+The main assignment is a direct mapped system; ie: an inode with 12 pointers to data can only store
+12*512 bytes per file.
+
+Indirect Blocks:
+Once the file grows beyond the direct mapped size the filesystem will grab a data block and
+start using it to store additional block pointers.  The address of this block will be stored
+in the inode.
+
+
+
+
+*/
+
 //This should go in another file
 
  #define IFILE 0
@@ -73,6 +92,46 @@ struct inode {
   int db_addr[12]; //datablock addresses
   char path[64]; //this defeats the purpose of doing address calcs. Need to change latur
   //I have no idea vhat I am do.
+};
+
+//First thing in our memory/disk
+//Superblock keeps track of our filesystem info
+//Contains metadata on filesystems. 
+
+//Tony:
+//Not sure what we need or don't need here
+//Unix's superblock is a huge struct full irrelevant stuff 
+//when we are only using a single filesystem
+struct superblock{
+	int total_inodes;
+	int total_datablocks;
+	struct super_operations s_op;  /* superblock methods */
+};
+
+//Superblock Operations
+
+//The most important item in the superblock object is s_op, which is the superblock operations table. The superblock operations table is represented by struct super_operations and is defined in <linux/fs.h>. It looks like this:
+
+//TOny: We may not need any or some of these.
+struct super_operations {
+        struct inode *(*alloc_inode) (struct super_block *sb);
+        void (*destroy_inode) (struct inode *);
+        void (*read_inode) (struct inode *);
+        void (*dirty_inode) (struct inode *);
+        void (*write_inode) (struct inode *, int);
+        void (*put_inode) (struct inode *);
+        void (*drop_inode) (struct inode *);
+        void (*delete_inode) (struct inode *);
+        void (*put_super) (struct super_block *);
+        void (*write_super) (struct super_block *);
+        int (*sync_fs) (struct super_block *, int);
+        void (*write_super_lockfs) (struct super_block *);
+        void (*unlockfs) (struct super_block *);
+        int (*statfs) (struct super_block *, struct statfs *);
+        int (*remount_fs) (struct super_block *, int *, char *);
+        void (*clear_inode) (struct inode *);
+        void (*umount_begin) (struct super_block *);
+        int (*show_options) (struct seq_file *, struct vfsmount *);
 };
 
 //Keeps track of inodes.
