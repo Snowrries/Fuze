@@ -54,11 +54,15 @@
 
  #define MAX_NODES ((BLOCK_SIZE*64)/sizeof(struct inode)) //64 is arbitrary
  
+
+ //Used for directories
  struct dirent{
  	int file_serial_number; //Distinguish this file from all other files on device
  	char d_name[]; //File name
+ 	//Needs more stuff here
  };
 
+//Used for files
 struct inode {
   int inode_number;
   struct inode *i_next,* i_prev;
@@ -71,11 +75,14 @@ struct inode {
   //I have no idea vhat I am do.
 };
 
+//Keeps track of inodes.
 struct inodes_table {
 	struct inode table[MAX_NODES];
 };
 
 struct inodes_table global_table; //EWWW someone help me change this
+
+//Find Inode
 struct inode *get_inode(char *path){
 	int i;
 	log_msg("\n I am converting my path to an inode");
@@ -99,6 +106,8 @@ void *sfs_init(struct fuse_conn_info *conn)
     all our data into a flat file. 
     */
     disk_open((SFS_DATA)->diskfile);
+    
+    //Init the inode table
     int i;
     for(i =0; i<MAX_NODES;i++){
     	inodes_table[i].inode_number = i;
