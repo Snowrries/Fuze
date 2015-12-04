@@ -99,6 +99,10 @@ void *sfs_init(struct fuse_conn_info *conn)
     all our data into a flat file. 
     */
     disk_open((SFS_DATA)->diskfile);
+    int i;
+    for(i =0; i<MAX_NODES;i++){
+    	inodes_table[i].inode_number = i;
+    }
     /*
     Have to set block sizes, buffer sizes, max write/reads, inodes
     */
