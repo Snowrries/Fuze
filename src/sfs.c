@@ -52,11 +52,8 @@
  #define IFILE 0
  #define IDIR 1
 
- #define MAX_NODES ((BLOCK_SIZE*64)/sizeof(struct inode))
- struct superblock{
-
- };
-
+ #define MAX_NODES ((BLOCK_SIZE*64)/sizeof(struct inode)) //64 is arbitrary
+ 
  struct dirent{
  	int file_serial_number; //Distinguish this file from all other files on device
  	char d_name[]; //File name
@@ -64,12 +61,13 @@
 
 struct inode {
   int inode_number;
-  struct inode *i_next, *i_prev;
+  struct inode *i_next,* i_prev;
   struct icommon *on-disk;
   int uid;
   int size;
   int inodetype;
   int db_addr[12]; //datablock addresses
+  char path[64]; //this defeats the purpose of doing address calcs. Need to change latur
   //I have no idea vhat I am do.
 };
 
@@ -77,6 +75,17 @@ struct inodes_table {
 	struct inode table[MAX_NODES];
 };
 
+struct inodes_table global_table; //EWWW someone help me change this
+struct inode *get_inode(char *path){
+	int i;
+	log_msg("\n I am converting my path to an inode");
+	for(i = 0; i<MAX_NODES; i++){
+		if(strcmp((char*)&global_table[i].path,path) = 0){
+			return &inds_table.table[i];
+		}
+	}
+	return NULL;
+}
 
 void *sfs_init(struct fuse_conn_info *conn)
 {
