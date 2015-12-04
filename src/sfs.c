@@ -47,20 +47,36 @@
  * Changed in version 2.6
  */
 
- 
 //This should go in another file
-struct inode {
-  
-  struct inode *i_next, *i_prev;
-  struct inode *i_dir_next, *i_dir,prev;
 
+ #define IFILE 0
+ #define IDIR 1
+
+ #define MAX_NODES ((BLOCK_SIZE*64)/sizeof(struct inode))
+ struct superblock{
+
+ };
+
+ struct dirent{
+ 	int file_serial_number; //Distinguish this file from all other files on device
+ 	char d_name[]; //File name
+ };
+
+struct inode {
+  int inode_number;
+  struct inode *i_next, *i_prev;
+  struct icommon *on-disk;
   int uid;
   int size;
-  int timeaccessed; //that have this time stuff in linux inodes
-  long blocks;
-  struct stat   *stat;
+  int inodetype;
+  int db_addr[12]; //datablock addresses
   //I have no idea vhat I am do.
 };
+
+struct inodes_table {
+	struct inode table[MAX_NODES];
+};
+
 
 void *sfs_init(struct fuse_conn_info *conn)
 {
