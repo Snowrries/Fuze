@@ -70,8 +70,8 @@ in the inode.
 
  #define IFILE 0 //Inode is a file
  #define IDIR 1  //Inode is a directory
-
- #define MAX_NODES ((BLOCK_SIZE*64)/sizeof(struct inode)) //64 is arbitrary
+ #define MAX_SIZE 64 //64 is arbitrary
+ #define MAX_NODES ((BLOCK_SIZE*MAX_SIZE)/sizeof(struct inode)) 
  
 
 
@@ -98,6 +98,7 @@ struct inode {
 //Not sure what we need or don't need here
 //Unix's superblock is a huge struct full irrelevant stuff 
 //when we are only using a single filesystem
+//Allen: superblock never initted. 
 struct superblock{
 	int total_inodes;
 	int total_datablocks;
