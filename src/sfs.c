@@ -70,7 +70,9 @@ in the inode.
 
  #define IFILE 0 //Inode is a file
  #define IDIR 1  //Inode is a directory
- #define MAX_SIZE 64 //64 is arbitrary
+
+#define MAX_SIZE 64 //64 is arbitrary
+ #define InodeStartAddr 1 //Need to Set where the inodes start in our data blocks
  #define MAX_NODES ((BLOCK_SIZE*MAX_SIZE)/sizeof(struct inode)) 
  
 
@@ -78,16 +80,30 @@ in the inode.
 struct inode {
   //Universal to all Inodes
   int inode_number;
+  int mode; //can this file be read/written/executed
   struct icommon *on-disk;
   int uid;
   int size;
   int inodetype;
-  int db_addr[12]; //datablock addresses
+  int db_addr[13]; //datablock addresses; 13 is used for indirect pointers
   char path[64]; //this defeats the purpose of doing address calcs. Need to change latur
+
+  //To read inode number 32 we do 32*sizeof(inode) + indoestartaddr
+  //blk = (inumber * sizeof(inode)) / blockSize;
+  //sector = ((blk * blockSize) + inodeStartAddr) / sectorSize;
+
 
   //Things Specific to directory Inodes
 
   //Things Specfic to file Inodes
+};
+
+struct inodes_bitmap{
+	int bitmap[/*size*/];
+};
+
+struct data_bitmap{
+	int bitmap[/*size*/];
 };
 
 //First thing in our memory/disk
@@ -98,7 +114,7 @@ struct inode {
 //Not sure what we need or don't need here
 //Unix's superblock is a huge struct full irrelevant stuff 
 //when we are only using a single filesystem
-//Allen: superblock never initted. 
+//Allen: superblock never initted
 struct superblock{
 	int total_inodes;
 	int total_datablocks;
