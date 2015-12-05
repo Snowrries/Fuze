@@ -102,7 +102,7 @@ struct inode {
   char name[64]; // Max name size is 64 chars. PATH_MAX is a thing.
   struct indir1 indirect1;
   struct indir2 indirect2;
-  
+  int num_blocks;
   //To read inode number 32 we do 32*sizeof(inode) + indoestartaddr
   //blk = (inumber * sizeof(inode)) / blockSize;
   //sector = ((blk * blockSize) + inodeStartAddr) / sectorSize;
@@ -199,7 +199,7 @@ int get_inode_kai(struct superblock superblock, char *path){//Returns the inode_
 		while(!strncmp((superblock.global_table[cur_inode_number].path), buffer, PATH_MAX)){//return 0 means match find
 			if(cur_inode_number = (superblock.global_table[cur_inode_number].next) < 0){
 				log_msg("File does not exist. Path %s", path);
-				return NULL;
+				return -1;
 				//Uhoh. Got to the directory, but file no found. 
 				//We hit the end of the LL for the Directory without matching a file name.
 			}
@@ -210,7 +210,7 @@ int get_inode_kai(struct superblock superblock, char *path){//Returns the inode_
 			if(superblock.global_table[cur_inode_number].child == NULL){
 				//There is more to parse, but no child exists? Problem.
 				log_msg("File does not exist. Path: %s", path);
-				return NULL;
+				return -1;
 			}
 		}
 		//In the else case, the while loop will just exit and we'll return the right value.
@@ -261,7 +261,7 @@ void *sfs_init(struct fuse_conn_info *conn)
     root.inodetype = IDIR;
     //inode_numbers explained: This is just a number to uniquely identify our inodes. 2 is always root.
     // The inode_number is the index of the inode in the global static inode array.
-    struct superblock spb;
+   global struct superblock spb;
     //Init superblock here
     /*	int total_inodes;
 	int total_datablocks;
@@ -303,11 +303,48 @@ void sfs_destroy(void *userdata)
  * ignored.  The 'st_ino' field is ignored except if the 'use_ino'
  * mount option is given.
  */
+ //Returns -1 if error.
 int sfs_getattr(const char *path, struct stat *statbuf)
 {
     int retstat = 0;
     char fpath[PATH_MAX];
+   /* int inode_num;
+    struct inode cur_inode;
+    if((inode_num = get_inode_kai(path) < 0){
+    	log_msg("Could not find path!");
+    	return -1;
+    }
+    cur_inode = spb.global_table[inode_num];
     
+    statbuf->st_dev = 9001; //How are we supposed to know this?
+    statbuf->st_ino = (ino_t)inode_num;
+    statbuf->mode_t = cur_inode.mode; 
+    statbuf->st_nlink = 0; //Hardlinks not implemented
+    statbuf->uid_t = cur_inode.uid;
+    statbuf->gid_t = cur_inode.gid;
+    statbuf->st_rdev = 0; //What's a special file device id o_o
+    statbuf->st_size = size; //Remember to define all these in inode struct later.
+    statbuf->st_blksize = BLOCK_SIZE;
+    statbuf->st_blocks = num_blocks; //Remember to define me
+    statbuf->st_atime = 0;
+    statbuf->st_mtime = 0;
+    statbuf->st_ctime = 0; 
+    */
+//    struct stat {
+//    dev_t     st_dev;     /* ID of device containing file */
+//    ino_t     st_ino;     /* inode number */
+//    mode_t    st_mode;    /* protection */
+//    nlink_t   st_nlink;   /* number of hard links */
+//    uid_t     st_uid;     /* user ID of owner */
+//    gid_t     st_gid;     /* group ID of owner */
+//    dev_t     st_rdev;    /* device ID (if special file) */
+//    off_t     st_size;    /* total size, in bytes */
+//    blksize_t st_blksize; /* blocksize for file system I/O */
+//    blkcnt_t  st_blocks;  /* number of 512B blocks allocated */
+//    time_t    st_atime;   /* time of last access */
+//    time_t    st_mtime;   /* time of last modification */
+//    time_t    st_ctime;   /* time of last status change */
+//};
     log_msg("\nsfs_getattr(path=\"%s\", statbuf=0x%08x)\n",
 	  path, statbuf);
 
@@ -322,6 +359,7 @@ int sfs_getattr(const char *path, struct stat *statbuf)
     //log_stat
 
     return retstat;
+    
 }
 
 /**
@@ -549,11 +587,25 @@ int sfs_opendir(const char *path, struct fuse_file_info *fi)
 int sfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset,
 	       struct fuse_file_info *fi)
 {
-    int retstat = 0;
-    
-    // Tony: Fuck This Shit.
-    
-    return retstat;
+    DIR *somedir;
+    struct dirent *entry;
+//    struct stat statarg;
+    if( (somedir=opendir(path) < 0) {
+    	return errno; //Does this have to be negative? PositivE?
+    }
+    while((entry = readdir(somedir))!= NULL){
+//    	memset(&statarg, 0, sizeof(statarg));
+//    	statarg.sg_ino= 
+	if (filler(buf, entry->d_name, NULL, 0)){
+		closedir(somedir);
+		return 0;
+	}
+	//If readdir is null, that's all the stuff in the directory
+	//If filler is 0, something's wrong.
+	//Just quit in either case. They'll never know! 
+    }
+    closedir(somedir);
+    return 0;
 }
 
 /** Release directory
