@@ -71,12 +71,23 @@ in the inode.
  #define IFILE 0 //Inode is a file
  #define IDIR 1  //Inode is a directory
 
-#define MAX_SIZE 64 //64 is arbitrary
+ #define BLOCK_SIZE 512
+ #define MAX_SIZE 64 //64 is arbitrary
  #define InodeStartAddr 1 //Need to Set where the inodes start in our data blocks
  #define MAX_NODES ((BLOCK_SIZE*MAX_SIZE)/sizeof(struct inode)) 
  
-
-
+struct indir1{
+	struct* inode indirect[BLOCK_SIZE/sizeof(struct *inode)]
+	//an array of inode pointers.
+}
+struct indir2{
+	struct* indir1 indirect2[BLOCK_SIZE/sizeof(struct *indir1)]
+	//an array of indir 1 pointers. 
+}
+ 
+ 
+ 
+ 
 struct inode {
   //Universal to all Inodes
   int inode_number; //root starts with inode #2
@@ -84,27 +95,33 @@ struct inode {
   struct icommon *on-disk;
   int uid;
   int size;
-  int inodetype;
+   /*define IFILE 0 //Inode is a file
+   define IDIR 1  //Inode is a directory*/
+  int inodetype; 
   int db_addr[13]; //datablock addresses; 13 is used for indirect pointers
-  char path[64]; //this defeats the purpose of doing address calcs. Need to change latur
-
+  char name[64]; // Max name size is 64 chars. PATH_MAX is a thing.
+  struct indir1 indirect1;
+  struct indir2 indirect2;
+  
   //To read inode number 32 we do 32*sizeof(inode) + indoestartaddr
   //blk = (inumber * sizeof(inode)) / blockSize;
   //sector = ((blk * blockSize) + inodeStartAddr) / sectorSize;
-
-
   //Things Specific to directory Inodes
-
+  int parent;
+  int child;
   //Things Specfic to file Inodes
+  int next;
+  //Parent child and next are all uids. Look up in the global table to find the inode corresponding.
 };
-
+/*
+//Allen: I don't know how to bitmap, so can we just be inefficient and use an array? :^)
 struct inodes_bitmap{
-	int bitmap[/*size*/];
+	int bitmap[size];
 };
 
 struct data_bitmap{
-	int bitmap[/*size*/];
-};
+	int bitmap[size];
+};*/
 
 //First thing in our memory/disk
 //Superblock keeps track of our filesystem info
@@ -115,9 +132,16 @@ struct data_bitmap{
 //Unix's superblock is a huge struct full irrelevant stuff 
 //when we are only using a single filesystem
 //Allen: superblock never initted
+
+//Keeps track of inodes.
+struct inodes_table {
+	struct inode table[MAX_NODES];
+}; 
+
 struct superblock{
 	int total_inodes;
 	int total_datablocks;
+	struct inodes_table global_table; //EWWW someone help me change this
 	struct super_operations s_op;  /* superblock methods */
 };
 
@@ -147,12 +171,8 @@ struct super_operations {
         int (*show_options) (struct seq_file *, struct vfsmount *);
 };
 
-//Keeps track of inodes.
-struct inodes_table {
-	struct inode table[MAX_NODES];
-};
 
-struct inodes_table global_table; //EWWW someone help me change this
+
 
 //Find Inode
 struct inode *get_inode(char *path){
@@ -165,6 +185,59 @@ struct inode *get_inode(char *path){
 	}
 	return NULL;
 }
+//Find Inode part 2
+
+int get_inode_kai(struct superblock superblock, char *path){//Returns the uid of an inode
+	char buffer[PATH_MAX];
+	int num;
+	int cur_uid = 0; //Start at root!
+	char *patho = path;
+	
+	while((num = parse_path(patho, buffer)) > -1){//Path ends in a /. 
+	//That is, we found 'something/', or just '/'. if we find 'something', that's considered nothing and we quit.
+	
+		while(!strncmp((superblock.global_table[cur_uid].path), buffer, PATH_MAX)){//return 0 means match find
+			if(cur_uid = (superblock.global_table[cur_uid].next) < 0){
+				log_msg("File does not exist. Path %s", path);
+				return NULL;
+				//Uhoh. Got to the directory, but file no found. 
+				//We hit the end of the LL for the Directory without matching a file name.
+			}
+		}
+		//Current parsed path part found. 
+		//Is there more to parse? 
+		if(parse_path(patho+num+1, buffer) > -1){
+			if(superblock.global_table[cur_uid].child == NULL){
+				//There is more to parse, but no child exists? Problem.
+				log_msg("File does not exist. Path: %s", path);
+				return NULL;
+			}
+		}
+		//In the else case, the while loop will just exit and we'll return the right value.
+		patho = patho+num+1;
+		//Increment by the number we read, plus the / at the end of each file or path. 
+	}
+	return cur_uid
+	
+	
+}
+
+int parse_path(char *path, char* buffer){
+	char a;
+	char* tpath = path;
+	int i = 0 ;
+	while( (a = tpath*) != '/'){
+		buffer[i] = a;
+		tpath++;
+		i++
+		if(i == PATH_MAX-1){
+			return -1;
+		}
+	}
+	buffer[i] = '\0';
+	return i;
+}
+
 
 void *sfs_init(struct fuse_conn_info *conn)
 {
@@ -178,6 +251,25 @@ void *sfs_init(struct fuse_conn_info *conn)
     all our data into a flat file. 
     */
     disk_open((SFS_DATA)->diskfile);
+    
+    struct inode root;
+    root.uid = 0; 
+    root.parent = -1;
+    root.child = -1;
+    root.next = -1;
+    root.path = "";
+    //UIDs explained: Not your traditional uid. This is just a number to uniquely identify our inodes. 0 is always root.
+    // The uid is the index of the inode in the global static inode array.
+    struct superblock spb;
+    //Init superblock here
+    /*	int total_inodes;
+	int total_datablocks;
+	struct inodes_table global_table; //EWWW someone help me change this
+	struct super_operations s_op;  /* superblock methods */
+    spb.total_inodes = MAX_NODES;
+    spb.total_datablocks = 9001;
+    spb.global_table[0] = root;
+    
     
     //Init the inode table
     int i;
