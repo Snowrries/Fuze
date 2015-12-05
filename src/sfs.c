@@ -427,6 +427,7 @@ int sfs_open(const char *path, struct fuse_file_info *fi)
 {
     int retstat = 0;
     int fd;
+    int inode_num;
     log_msg("\nsfs_open(path\"%s\", fi=0x%08x)\n",
   	    path, fi);
 
@@ -437,6 +438,8 @@ int sfs_open(const char *path, struct fuse_file_info *fi)
     }
     fi->fh = fd;
 
+    //inode_num = get_inode_kai(spb, path);
+    
     /*
     Tony: Use path to located where the file is located in our virtual drive index.
     */
