@@ -111,7 +111,7 @@ struct inode {
   int child;
   //Things Specfic to file Inodes
   int next;
-  //Parent child and next are all uids. Look up in the global table to find the inode corresponding.
+  //Parent child and next are all inode_numbers. Look up in the global table to find the inode corresponding.
 };
 /*
 //Allen: I don't know how to bitmap, so can we just be inefficient and use an array? :^)
@@ -187,17 +187,17 @@ struct inode *get_inode(char *path){
 }
 //Find Inode part 2
 
-int get_inode_kai(struct superblock superblock, char *path){//Returns the uid of an inode
+int get_inode_kai(struct superblock superblock, char *path){//Returns the inode_number of an inode
 	char buffer[PATH_MAX];
 	int num;
-	int cur_uid = 0; //Start at root!
+	int cur_inode_number = 2; //Start at root!
 	char *patho = path;
 	
 	while((num = parse_path(patho, buffer)) > -1){//Path ends in a /. 
 	//That is, we found 'something/', or just '/'. if we find 'something', that's considered nothing and we quit.
 	
-		while(!strncmp((superblock.global_table[cur_uid].path), buffer, PATH_MAX)){//return 0 means match find
-			if(cur_uid = (superblock.global_table[cur_uid].next) < 0){
+		while(!strncmp((superblock.global_table[cur_inode_number].path), buffer, PATH_MAX)){//return 0 means match find
+			if(cur_inode_number = (superblock.global_table[cur_inode_number].next) < 0){
 				log_msg("File does not exist. Path %s", path);
 				return NULL;
 				//Uhoh. Got to the directory, but file no found. 
@@ -207,7 +207,7 @@ int get_inode_kai(struct superblock superblock, char *path){//Returns the uid of
 		//Current parsed path part found. 
 		//Is there more to parse? 
 		if(parse_path(patho+num+1, buffer) > -1){
-			if(superblock.global_table[cur_uid].child == NULL){
+			if(superblock.global_table[cur_inode_number].child == NULL){
 				//There is more to parse, but no child exists? Problem.
 				log_msg("File does not exist. Path: %s", path);
 				return NULL;
@@ -217,7 +217,7 @@ int get_inode_kai(struct superblock superblock, char *path){//Returns the uid of
 		patho = patho+num+1;
 		//Increment by the number we read, plus the / at the end of each file or path. 
 	}
-	return cur_uid
+	return cur_inode_number;
 	
 	
 }
@@ -253,13 +253,14 @@ void *sfs_init(struct fuse_conn_info *conn)
     disk_open((SFS_DATA)->diskfile);
     
     struct inode root;
-    root.uid = 0; 
+    root.inode_number = 2; 
     root.parent = -1;
     root.child = -1;
     root.next = -1;
     root.path = "";
-    //UIDs explained: Not your traditional uid. This is just a number to uniquely identify our inodes. 0 is always root.
-    // The uid is the index of the inode in the global static inode array.
+    root.inodetype = IDIR;
+    //inode_numbers explained: This is just a number to uniquely identify our inodes. 2 is always root.
+    // The inode_number is the index of the inode in the global static inode array.
     struct superblock spb;
     //Init superblock here
     /*	int total_inodes;
@@ -268,6 +269,7 @@ void *sfs_init(struct fuse_conn_info *conn)
 	struct super_operations s_op;  /* superblock methods */
     spb.total_inodes = MAX_NODES;
     spb.total_datablocks = 9001;
+    //Completely arbitrary. I don't know how many datablocks we should have.
     spb.global_table[0] = root;
     
     
