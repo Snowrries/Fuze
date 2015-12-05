@@ -79,7 +79,7 @@ in the inode.
 
 struct inode {
   //Universal to all Inodes
-  int inode_number;
+  int inode_number; //root starts with inode #2
   int mode; //can this file be read/written/executed
   struct icommon *on-disk;
   int uid;
