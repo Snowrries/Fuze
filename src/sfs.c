@@ -283,10 +283,32 @@ void *sfs_init(struct fuse_conn_info *conn)
   }
 
   else{
+
     //SuperBlock is inited
     //Do a bunch of block reads
+    //Buffer size should be the size of our inodebitmap/array
+    //Read in inode_bitmap/array
+    if(block_read(1, buffer)>0){
+     // memcpy(/*Pointer to bitmap*/,buffer,sizeof(struct inodes_bitmap));
+    }
+
+    //Init data bitmap
+    if(block_read(1, buffer)>0){
+       //memcpy(/*Pointer to bitmap*/,buffer,sizeof(struct data_bitmap));
+    }
 
   }
+  if(block_write(0,&spb) > 0){
+      log_msg("\n Superblock Initialized");
+  }
+  /*
+  if(block_write(1,&inodes_bitmap)){
+
+  }
+  if(block_write(2,&data_bitmap)){
+  
+  }
+  */
     /*
     Have to set block sizes, buffer sizes, max write/reads, inodes
     */
@@ -391,6 +413,20 @@ int sfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
     int fd;
     log_msg("\nsfs_create(path=\"%s\", mode=0%03o, fi=0x%08x)\n",
 	    path, mode, fi);
+
+    int block = /*Find the first unset block*/
+    struct inode *new_node = get_inode((char*) path);
+
+    if(new_node != NULL){
+      //it is already taken
+    }
+    else {
+      //Get new node location from bitmap/array
+      //Populate inode info on the inode table
+      //Write the inode to correct location on disk
+      //Update bitmap and write to disk
+    }
+
 
     //Skeleton Code
     fd = open(path,O_WRONLY|O_CREAT|O_TRUNC, mode);
