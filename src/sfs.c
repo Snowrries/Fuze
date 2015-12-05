@@ -79,11 +79,11 @@ in the inode.
 struct indir1{
 	struct* inode indirect[BLOCK_SIZE/sizeof(struct *inode)]
 	//an array of inode pointers.
-}
+};
 struct indir2{
 	struct* indir1 indirect2[BLOCK_SIZE/sizeof(struct *indir1)]
 	//an array of indir 1 pointers. 
-}
+};
  
  
  
@@ -93,7 +93,8 @@ struct inode {
   int inode_number; //root starts with inode #2
   int mode; //can this file be read/written/executed
   struct icommon *on-disk;
-  int uid;
+  int uid; //Do we need this
+  int gid; //Do we need this
   int size;
    /*define IFILE 0 //Inode is a file
    define IDIR 1  //Inode is a directory*/
@@ -103,6 +104,7 @@ struct inode {
   struct indir1 indirect1;
   struct indir2 indirect2;
   int num_blocks;
+  int links;
   //To read inode number 32 we do 32*sizeof(inode) + indoestartaddr
   //blk = (inumber * sizeof(inode)) / blockSize;
   //sector = ((blk * blockSize) + inodeStartAddr) / sectorSize;
@@ -171,23 +173,20 @@ struct super_operations {
         int (*show_options) (struct seq_file *, struct vfsmount *);
 };
 
-
-
-
-//Find Inode
 struct inode *get_inode(char *path){
-	int i;
-	log_msg("\n I am converting my path to an inode");
-	for(i = 0; i<MAX_NODES; i++){
-		if(strcmp((char*)&global_table[i].path,path) = 0){
-			return &inds_table.table[i];
-		}
-	}
-	return NULL;
+  int i;
+  log_msg("\n I am converting my path to an inode");
+  for(i = 0; i<MAX_NODES; i++){
+    if(strcmp((char*)&global_table[i].path,path) = 0){
+      return &inds_table.table[i];
+    }
+  }
+  return NULL;
 }
+
 //Find Inode part 2
 
-int get_inode_kai(struct superblock superblock, char *path){//Returns the inode_number of an inode
+int get_inode(struct superblock superblock, char *path){//Returns the inode_number of an inode
 	char buffer[PATH_MAX];
 	int num;
 	int cur_inode_number = 2; //Start at root!
@@ -252,32 +251,42 @@ void *sfs_init(struct fuse_conn_info *conn)
     */
     disk_open((SFS_DATA)->diskfile);
     
-    struct inode root;
-    root.inode_number = 2; 
-    root.parent = -1;
-    root.child = -1;
-    root.next = -1;
-    root.path = "";
-    root.inodetype = IDIR;
-    //inode_numbers explained: This is just a number to uniquely identify our inodes. 2 is always root.
-    // The inode_number is the index of the inode in the global static inode array.
-   global struct superblock spb;
-    //Init superblock here
+    char* buf = BLOCK_SIZE;
+    if(!(block_read(0,buf)>0){
+      int uid = getuid();
+      int gid = getegid(); 
+
+      struct inode root;
+      root.inode_number = 2;
+      root.parent = -1;
+      root.child = -1;
+      root.next = -1;
+      memcpy(root.path,"/",1);
+      root.size = 0;
+      root.uid = uid;
+      root.gid = gid;
+      root.blocks = 0;
+      root.inodetype = IDIR;
+
+      //inode_numbers explained: This is just a number to uniquely identify our inodes. 2 is always root.
+      // The inode_number is the index of the inode in the global static inode array.
+     global struct superblock spb;
+     //Init superblock here
     /*	int total_inodes;
-	int total_datablocks;
+	   int total_datablocks;
 	struct inodes_table global_table; //EWWW someone help me change this
 	struct super_operations s_op;  /* superblock methods */
-    spb.total_inodes = MAX_NODES;
-    spb.total_datablocks = 9001;
+      spb.total_inodes = MAX_NODES;
+      spb.total_datablocks = 9001;
     //Completely arbitrary. I don't know how many datablocks we should have.
-    spb.global_table[0] = root;
-    
-    
-    //Init the inode table
-    int i;
-    for(i =0; i<MAX_NODES;i++){
-    	inodes_table[i].inode_number = i;
-    }
+      spb.global_table[0] = root;
+  }
+
+  else{
+    //SuperBlock is inited
+    //Do a bunch of block reads
+
+  }
     /*
     Have to set block sizes, buffer sizes, max write/reads, inodes
     */
@@ -307,29 +316,32 @@ void sfs_destroy(void *userdata)
 int sfs_getattr(const char *path, struct stat *statbuf)
 {
     int retstat = 0;
+    log_msg("\nsfs_getattr(path=\"%s\", statbuf=0x%08x)\n",
+    path, statbuf);
     char fpath[PATH_MAX];
    /* int inode_num;
     struct inode cur_inode;
-    if((inode_num = get_inode_kai(path) < 0){
+    if((inode_num = get_inode(path) < 0){
     	log_msg("Could not find path!");
     	return -1;
     }
-    cur_inode = spb.global_table[inode_num];
+    */
+    cur_inode = get_inode(path);
     
-    statbuf->st_dev = 9001; //How are we supposed to know this?
-    statbuf->st_ino = (ino_t)inode_num;
+    //statbuf->st_dev = 9001; //How are we supposed to know this?
+   // statbuf->st_ino = (ino_t)inode_num;
     statbuf->mode_t = cur_inode.mode; 
-    statbuf->st_nlink = 0; //Hardlinks not implemented
+    statbuf->st_nlink = cur_inode.links; //Hardlinks not implemented
     statbuf->uid_t = cur_inode.uid;
     statbuf->gid_t = cur_inode.gid;
-    statbuf->st_rdev = 0; //What's a special file device id o_o
+    //statbuf->st_rdev = 0; //What's a special file device id o_o
     statbuf->st_size = size; //Remember to define all these in inode struct later.
     statbuf->st_blksize = BLOCK_SIZE;
     statbuf->st_blocks = num_blocks; //Remember to define me
-    statbuf->st_atime = 0;
-    statbuf->st_mtime = 0;
-    statbuf->st_ctime = 0; 
-    */
+    //statbuf->st_atime = 0;
+    //statbuf->st_mtime = 0;
+    //statbuf->st_ctime = 0; 
+    
 //    struct stat {
 //    dev_t     st_dev;     /* ID of device containing file */
 //    ino_t     st_ino;     /* inode number */
@@ -345,8 +357,7 @@ int sfs_getattr(const char *path, struct stat *statbuf)
 //    time_t    st_mtime;   /* time of last modification */
 //    time_t    st_ctime;   /* time of last status change */
 //};
-    log_msg("\nsfs_getattr(path=\"%s\", statbuf=0x%08x)\n",
-	  path, statbuf);
+    
 
     //Skeleton Code
     strcpy(fpath, SFS_DATA->rootdir);
@@ -356,7 +367,7 @@ int sfs_getattr(const char *path, struct stat *statbuf)
     if (retstat != 0){
        log_msg("ERROR %s",strerror(errno));
     }
-    //log_stat
+    //log_sta
 
     return retstat;
     
@@ -438,7 +449,7 @@ int sfs_open(const char *path, struct fuse_file_info *fi)
     }
     fi->fh = fd;
 
-    //inode_num = get_inode_kai(spb, path);
+    //inode_num = get_inode(spb, path);
     
     /*
     Tony: Use path to located where the file is located in our virtual drive index.
