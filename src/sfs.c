@@ -206,11 +206,12 @@ int get_inode(struct superblock superblock, char *path){//Returns the inode_numb
 		//Current parsed path part found. 
 		//Is there more to parse? 
 		if(parse_path(patho+num+1, buffer) > -1){
-			if(superblock.global_table[cur_inode_number].child == NULL){
+			if(cur_inode_number = superblock.global_table[cur_inode_number].child == NULL){
 				//There is more to parse, but no child exists? Problem.
 				log_msg("File does not exist. Path: %s", path);
 				return -1;
 			}
+			
 		}
 		//In the else case, the while loop will just exit and we'll return the right value.
 		patho = patho+num+1;
