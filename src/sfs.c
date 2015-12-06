@@ -564,6 +564,12 @@ int sfs_write(const char *path, const char *buf, size_t size, off_t offset,
     if (retstat == -1){
       retstat = -errno;
     }
+    if(size <= BLOCK_SIZE){
+      //get inode 
+      struct inode *node = //get_inode(path);
+      node->size = size;
+    }
+
     /*
     Tony: Similar to read.
     */
