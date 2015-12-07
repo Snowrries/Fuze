@@ -72,15 +72,15 @@ in the inode.
  #define IDIR 1  //Inode is a directory
 
  #define BLOCK_SIZE 512
- #define MAX_SIZE 64 //64 is arbitrary
+ #define MAX_NODES 64 //64 is arbitrary, We have 64 inodes to use
  #define MAX_BLOCKS 128
  #define InodeStartAddr 1 //Need to Set where the inodes start in our data blocks
  #define MAX_NODES_PER_BLOCK ((BLOCK_SIZE)/sizeof(struct inode)) 
- #define MAX_NODES MAX_SIZE/MAX_NODES_PER_BLOCK
+ #define MAX_SIZE MAX_NODES/MAX_NODES_PER_BLOCK //Size of Inode Table
 
 char data_bitmap[MAX_BLOCKS]; 
-char inode_bitmap[MAX_SIZE];
-inode in_table[MAX_NODES];
+char inode_bitmap[MAX_NODES]; //64 inodes to keep track of
+inode in_table[MAX_SIZE];
 
 
 direntry *init_direntry(inode *n, char *name){
@@ -109,25 +109,22 @@ struct data_bitmap{
 //when we are only using a single filesystem
 //Allen: superblock never initted
 
-//Keeps track of inodes.
 
+int find_freeblock(){
+  int i = MAX_SIZE;
+  while(i<MAX_BLOCKS){
+    if(data_bitmap[i] == 0){
+      return i;
+    }
+  }
+  return 0;
+}
 
-//Superblock Operations
 
 //The most important item in the superblock object is s_op, which is the superblock operations table. The superblock operations table is represented by struct super_operations and is defined in <linux/fs.h>. It looks like this:
 
 //TOny: We may not need any or some of these.
 
-struct inode *get_inode(char *path){
-  int i;
-  log_msg("\n I am converting my path to an inode");
-  for(i = 0; i<MAX_NODES; i++){
-    if(strcmp((char*)&global_table[i].path,path) = 0){
-      return &inds_table.table[i];
-    }
-  }
-  return NULL;
-}
 
 //Find Inode part 2
 
@@ -163,7 +160,6 @@ int get_inode(struct superblock superblock, char *path){//Returns the inode_numb
 		//Increment by the number we read, plus the / at the end of each file or path. 
 	}
 	return cur_inode_number;
-	
 	
 }
 
@@ -211,7 +207,7 @@ void *sfs_init(struct fuse_conn_info *conn)
       }
 
       memset(data_bitmap,0,sizeof(data_bitmap));
-      int n = MAX_NODES + 4;
+      int n = size_t + 4;
       for(int i = 0; i < n;i++){
           data_bitmap[i] = 1;
       }
@@ -231,9 +227,11 @@ void *sfs_init(struct fuse_conn_info *conn)
       int gid = getegid();       
       inode *root = malloc(sizeof(inode));
       root->inode_number = 0;
-      root->size = 0;
+      root->size = sizeof(dirent);
+      root->num_blocks = 1;
       root->uid = uid;
       root->gid = gid;
+      root->mode = 0700;
       root->inodetype = IDIR;
       root->singleindirect =0;
       root->doubleindirect =0;
@@ -254,7 +252,7 @@ void *sfs_init(struct fuse_conn_info *conn)
       int b;
       char* buf = malloc(BLOCK_SIZE);
       memset(buf, 0, BLOCK_SIZE);
-      for(b = 3; b<MAX_NODES+3; b++){
+      for(b = 3; b<MAX_SIZE+3; b++){
         /*REALLY DANGEROUS AND COULD GET OUT OF BOUNDS PLEASE FIX*/
           inode *tmp = in_table+(sizeof(BLOCK_SIZE)*(b-2)); //This can get out of bounds.
           memcpy(buf, tmp, sizeof(buf));
@@ -297,7 +295,7 @@ void *sfs_init(struct fuse_conn_info *conn)
     }
 
     memset(buffer,0,BLOCK_SIZE);
-    for (b =3;b<MAX_NODES+3;++b){
+    for (b =3;b<MAX_SIZE+3;++b){
       if(block_read(b, buffer)>0){
         inode *tmp = in_table+(sizeof(BLOCK_SIZE) *(b-2));
         memcpy(temp,buffer,sizeof(BLOCK_SIZE));
@@ -353,21 +351,21 @@ int sfs_getattr(const char *path, struct stat *statbuf)
     	return -1;
     }
     */
+    inode *cur_inode;
     cur_inode = get_inode(path);
-    
+    cur_inode->access_time = time();
     //statbuf->st_dev = 9001; //How are we supposed to know this?
    // statbuf->st_ino = (ino_t)inode_num;
-    statbuf->mode_t = cur_inode.mode; 
-    statbuf->st_nlink = cur_inode.links; //Hardlinks not implemented
-    statbuf->uid_t = cur_inode.uid;
-    statbuf->gid_t = cur_inode.gid;
+    statbuf->mode_t = cur_inode->mode; 
+    //statbuf->st_nlink = cur_inode.links; //Hardlinks not implemented
+    statbuf->uid_t = cur_inode->uid;
+    statbuf->gid_t = cur_inode->gid;
     //statbuf->st_rdev = 0; //What's a special file device id o_o
-    statbuf->st_size = size; //Remember to define all these in inode struct later.
-    statbuf->st_blksize = BLOCK_SIZE;
-    statbuf->st_blocks = num_blocks; //Remember to define me
-    //statbuf->st_atime = 0;
-    //statbuf->st_mtime = 0;
-    //statbuf->st_ctime = 0; 
+    statbuf->st_size = cur_inode->size; //Remember to define all these in inode struct later.
+    statbuf->st_blocks = cur_inode->num_blocks; //Remember to define me
+    statbuf->st_atime = cur_inode->access_time;
+    statbuf->st_mtime = cur_inode->modify_time;
+    statbuf->st_ctime = cur_inode->create_time; 
     
 //    struct stat {
 //    dev_t     st_dev;     /* ID of device containing file */

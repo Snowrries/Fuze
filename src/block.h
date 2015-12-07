@@ -5,10 +5,14 @@
   See the file COPYING.
 */
 
+#include <sys/stat.h>
+#include <time.h>
+
 #ifndef _BLOCK_H_
 #define _BLOCK_H_
 
 #define BLOCK_SIZE 512
+
 
 typedef struct indirect_t {
 	int blocks[128]; //stores block numbers of other blocks which contain dirent blocks or another indirect_t
@@ -32,10 +36,14 @@ typedef struct dirent_t {
 typedef struct inode_t {
   //Universal to all Inodes
   int inode_number; //root starts with inode #2
-  int mode; //can this file be read/written/executed
-  int uid; //Do we need this
-  int gid; //Do we need this
-  int size;
+  mode_t mode; //can this file be read/written/executed
+  uid_t uid; //Do we need this
+  gid_t gid; //Do we need this
+  size_t size;
+  int num_blocks;
+  time_t access_time;
+  time_t modify_time;
+  time_t create_time;
    /*define IFILE 0 //Inode is a file
    define IDIR 1  //Inode is a directory*/
   int inodetype; 
