@@ -72,10 +72,13 @@ in the inode.
  #define IDIR 1  //Inode is a directory
 
  #define BLOCK_SIZE 512
- #define MAX_SIZE 64 //64 is arbitrary
+ #define MAX_SIZE  256//512 is arbitrary
  #define InodeStartAddr 4 //Need to Set where the inodes start in our data blocks
+ 
  #define MAX_NODES ((BLOCK_SIZE*MAX_SIZE)/sizeof(struct inode)) 
  
+char data_table[MAX_SIZE]; 
+inode in_table[MAX_NODES];
 
  
 /*
@@ -107,17 +110,6 @@ struct data_bitmap{
 
 //TOny: We may not need any or some of these.
 
-
-struct inode *get_inode(char *path){
-  int i;
-  log_msg("\n I am converting my path to an inode");
-  for(i = 0; i<MAX_NODES; i++){
-    if(strcmp((char*)&global_table[i].path,path) = 0){
-      return &inds_table.table[i];
-    }
-  }
-  return NULL;
-}
 
 //Find Inode part 2
 
@@ -200,7 +192,13 @@ void *sfs_init(struct fuse_conn_info *conn)
       if(block_write(0,temp) >0){
         log_msg("\n SUPERBLOCK initialized");
       }
-      
+      //Init Data bitmap
+      memset(data_table,0,BLOCK_SIZE);
+      for(int i = 0; i < MAX_SIZE/MAX_NODES;i++){
+        data_table
+      }
+
+      //Init Root
       int uid = getuid();
       int gid = getegid(); 
 

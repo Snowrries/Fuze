@@ -40,12 +40,13 @@ typedef struct inode_t {
    /*define IFILE 0 //Inode is a file
    define IDIR 1  //Inode is a directory*/
   int inodetype; 
-  int direct[13];
-  indirect single_indirect;
-  indirect double_indirect;
+  int direct[22];
+  indirect *single_indirect;
+  indirect *double_indirect;
 } inode;
 
-extern inode_table in_table[];
+extern inode in_table[];
+extern char data_table[];
 
 void disk_open(const char* diskfile_path);
 void disk_close();
