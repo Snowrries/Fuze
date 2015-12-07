@@ -110,7 +110,9 @@ int get_inode_fragment(char* frag, int direct){
 }
 //get_inode takes a path and returns an inode_number, checking for errors along the way.
 //Returns the inode_number of the inode on success.
-//Returns -1 on error. Prints error to log.
+//Returns -1 on file not existing. Prints error to log.
+//Returns -2 if the pathname is invalid.
+//Returns -4 if the directory is full, and path does not exist.
 
 int get_inode(char *path){//Returns the inode_number of an inode
 //Assume path is a valid, null terminated path name.
@@ -139,7 +141,7 @@ int get_inode(char *path){//Returns the inode_number of an inode
 			if(num < running){
 				//There is more path, but we hit a file... That's an error.
 				log_msg("File is not a directory! Path: %s", path);
-				return -1;
+				return -2;
 			}
 			//Otherwise, we're just at the last part.
 		}
@@ -148,6 +150,11 @@ int get_inode(char *path){//Returns the inode_number of an inode
 
 	for(i = 0; i < 22; i++){
 		if(result = get_inode_fragment(buffer, curnode.direct) == -1){
+			if(num < running){
+				//There is more path, but we can't find the directory... That's an error.
+				log_msg("Invalid path! Path: %s", path);
+				return -2;
+			}
 			log_msg("File does not exist. Path: %s", path);
 			return -1;
 			//Critical error!
@@ -162,7 +169,12 @@ int get_inode(char *path){//Returns the inode_number of an inode
 			
 			for(i = 0; i<128; i++){
 				if(result = get_inode_fragment(buffer, curnode.single_indirect.block) == -1){
-				log_msg("File does not exist. Path: %s", path);
+					if(num < running){
+						//There is more path, but we can't find the directory... That's an error.
+						log_msg("Invalid path! Path: %s", path);
+						return -2;
+					}
+					log_msg("File does not exist. Path: %s", path);
 					return -1;
 					//Critical error!
 				}
@@ -175,6 +187,11 @@ int get_inode(char *path){//Returns the inode_number of an inode
 			for(i = 0; i<128; i++){
 				for (j = 0; j < 128; j++){
 					if(result = get_inode_fragment(buffer, curnode.double_indirect[i][j]) == -1){
+						if(num < running){
+							//There is more path, but we can't find the directory... That's an error.
+							log_msg("Invalid path! Path: %s", path);
+							return -2;
+						}
 						log_msg("File does not exist. Path: %s", path);
 						return -1;
 						//Critical error!
@@ -190,7 +207,7 @@ int get_inode(char *path){//Returns the inode_number of an inode
 		}
 		if(result == -2){
 			log_msg("File does not exist. Path: %s", path);
-			return -1;
+			return -4;
 			//Ridiculous. Doesn't exist in the direct, indirect, and double indirect... And they were all full!
 		}
 		patho = patho+num+1;
@@ -533,11 +550,10 @@ int sfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
     int block;
     inode new_node = get_inode(path);
 
-    if(new_node != NULL){
-      //it is already taken
+    if(new_node > 0){
       return sfs_open(path, fi);
     }
-    else {
+    else if(new_node == -1){
     	inode_num = get_free_inode();
     	block = get_free_block();/*Find the first unset block*/
     	data_bitmap[block] = 1;
@@ -553,6 +569,9 @@ int sfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
       //Populate inode info on the inode table
       //Write the inode to correct location on disk
       //Update bitmap and write to disk
+    }
+    else{
+    	return new_node; //Error code as defined in get_inode 
     }
 
 
