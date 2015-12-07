@@ -535,10 +535,20 @@ int sfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 
     if(new_node != NULL){
       //it is already taken
+      return sfs_open(path, fi);
     }
     else {
     	inode_num = get_free_inode();
     	block = get_free_block();/*Find the first unset block*/
+    	data_bitmap[block] = 1;
+    	inode_bitmap[inode_num] = 1;
+    	new_node.inode_number = inode_num;
+    	new_node.mode = mode;
+    	new_node.size = 0;
+    	new_node.num_blocks = 0;
+    	new_node.inodetype = IFILE;
+    	new_node.direct[0] = NULL;
+    	in_table[inode_num]
       //Get new node location from bitmap/array
       //Populate inode info on the inode table
       //Write the inode to correct location on disk
@@ -737,13 +747,17 @@ int sfs_write(const char *path, const char *buf, size_t size, off_t offset,
     
     return retstat;
 }
+//Returns length of file name
 int get_file_name(char* path, char* buffer){
 	int a = 0;
 	int b = strnlen(path, PATH_MAX);
+	int c = 0;
 	char* patho = path;
-	while((a = a + (c=parse_path(patho, buffer)) ) < b ){
-		patho = patho + c;
+	while( a < b ){
+		a = a + c + 1;
+		c = parse_path(&patho[a], buffer);
 	}
+	strncpy(buffer,path[a],c+1);
 	return c;
 	
 }
