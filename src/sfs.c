@@ -61,105 +61,139 @@ Once the file grows beyond the direct mapped size the filesystem will grab a dat
 start using it to store additional block pointers.  The address of this block will be stored
 in the inode.
 
-
-
-
 */
 
-//This should go in another file
 
  #define IFILE 0 //Inode is a file
  #define IDIR 1  //Inode is a directory
 
  #define BLOCK_SIZE 512
- #define MAX_NODES 64 //64 is arbitrary, We have 64 inodes to use
+ #define MAX_SIZE 64 //64 is arbitrary
  #define MAX_BLOCKS 128
  #define InodeStartAddr 1 //Need to Set where the inodes start in our data blocks
  #define MAX_NODES_PER_BLOCK ((BLOCK_SIZE)/sizeof(struct inode)) 
- #define MAX_SIZE MAX_NODES/MAX_NODES_PER_BLOCK //Size of Inode Table
+ #define MAX_NODES MAX_SIZE/MAX_NODES_PER_BLOCK
 
 char data_bitmap[MAX_BLOCKS]; 
-char inode_bitmap[MAX_NODES]; //64 inodes to keep track of
-inode in_table[MAX_SIZE];
-
-
-direntry *init_direntry(inode *n, char *name){
-  direntry *new_dir = malloc(sizeof(direntry));
-  strncpy(new_dir->name,name,sizeof(new_dir->name));
-  new_dir->node = n;
-  return new_dir
-}
-/*
-//Allen: I don't know how to bitmap, so can we just be inefficient and use an array? :^)
-struct inodes_bitmap{
-	int bitmap[size];
-};
-
-struct data_bitmap{
-	int bitmap[size];
-};*/
+char inode_bitmap[MAX_SIZE];
+inode in_table[MAX_NODES];
 
 //First thing in our memory/disk
 //Superblock keeps track of our filesystem info
 //Contains metadata on filesystems. 
 
-//Tony:
-//Not sure what we need or don't need here
-//Unix's superblock is a huge struct full irrelevant stuff 
-//when we are only using a single filesystem
-//Allen: superblock never initted
-
-
-int find_freeblock(){
-  int i = MAX_SIZE;
-  while(i<MAX_BLOCKS){
-    if(data_bitmap[i] == 0){
-      return i;
-    }
-  }
-  return 0;
-}
-
-
 //The most important item in the superblock object is s_op, which is the superblock operations table. The superblock operations table is represented by struct super_operations and is defined in <linux/fs.h>. It looks like this:
 
 //TOny: We may not need any or some of these.
+/*
+struct inode *get_inode(char *path){
+  int i;
+  log_msg("\n I am converting my path to an inode");
+  for(i = 0; i<MAX_NODES; i++){
+    if(strcmp((char*)&global_table[i].path,path) = 0){
+      return &inds_table.table[i];
+    }
+  }
+  return NULL;
+}*/
 
-
-//Find Inode part 2
-
-int get_inode(struct superblock superblock, char *path){//Returns the inode_number of an inode
+//Inode adventures.
+//get_inode_fragment takes an array of 22 block pointers. These are guaranteed to be pointers to 16 direntry structs.
+//If any link directly to the requested path fragment, it will return 0. 
+//If it doesn't exist and will not be in the indirect nodes, it will return -1. 
+//If it doesn't exist but might be in an indirect, it will return 1.
+int get_inode_fragment(char* frag, int direct[]){
+	direntry dirArray[16]; //512 bytes / block and 32 bytes/direntry. 16 direntries in a dirArray
+	int result = 0;
 	char buffer[PATH_MAX];
+	
+	for(int i = 0; i < 22; i++){
+		if(result = block_read(direct[i], dirArray) <= 0){
+			log_msg("File does not exist. Path: %s", path);
+			return -1; //Couldn't read?
+		}
+		
+		for(int j = 0; j < 16; i++){
+			if(!strncmp(dirArray[j].name, buffer, 27)){
+				return dirArray[j].inode_number;
+			}
+		}
+	}
+	log_msg("File does not exist. Path: %s", path);
+	return -2; //Doesn't exist in given node.
+}
+
+int get_inode(char *path){//Returns the inode_number of an inode
+//Assume path is a valid, null terminated path name.
 	int num;
 	int cur_inode_number = 2; //Start at root!
+	inode curnode;
+	int pathlen = strnlen(path, PATH_MAX);
+	int running = 0
 	char *patho = path;
+	int found = 0 ;
+	char buffer[PATH_MAX];
+	int result;
 	
-	while((num = parse_path(patho, buffer)) > -1){//Path ends in a /. 
-	//That is, we found 'something/', or just '/'. if we find 'something', that's considered nothing and we quit.
-	
-		while(!strncmp((superblock.global_table[cur_inode_number].path), buffer, PATH_MAX)){//return 0 means match find
-			if(cur_inode_number = (superblock.global_table[cur_inode_number].next) < 0){
-				log_msg("File does not exist. Path %s", path);
-				return -1;
-				//Uhoh. Got to the directory, but file no found. 
-				//We hit the end of the LL for the Directory without matching a file name.
-			}
-		}
-		//Current parsed path part found. 
-		//Is there more to parse? 
-		if(parse_path(patho+num+1, buffer) > -1){
-			if(cur_inode_number = superblock.global_table[cur_inode_number].child == NULL){
-				//There is more to parse, but no child exists? Problem.
-				log_msg("File does not exist. Path: %s", path);
+	while((num = num + parse_path(patho, buffer) + 1 ) <= running){
+	//Path always ends in a /. At the last bit of the path, it'll return -1.
+	//That is, we found 'something/', or just '/'. if we find 'something', that's considered nothing.
+	//We end when we've parsed all the path.
+		//Starting at root directory. Read dirents.
+		//If path is valid, this is always a directory until the very end.
+		
+		curnode = in_table[cur_inode_number];
+		if(curnode.inodetype == IFILE){
+			if(num < running){
+				//There is more path, but we hit a file... That's an error.
 				return -1;
 			}
-			
+			//Otherwise, we're just at the last part.
 		}
-		//In the else case, the while loop will just exit and we'll return the right value.
+		//Guaranteed to be a directory
+		if(result = get_inode_fragment(buffer, curnode.direct) == -1){
+			return -1;
+			//Critical error!
+		}
+		//if result == -2, we need to check indirects.
+		//Indirect checking
+		if(result == -2){
+			for(int i = 0; i<128; i++){
+				if(result = get_inode_fragment(buffer, curnode.single_indirect[i]) == -1){
+					return -1;
+					//Critical error!
+				}
+				if(result > -1){
+					break;
+				}
+			}
+		}
+		if(result == -2){
+			for(int i = 0; i<128; i++){
+				for int j = 0; j < 128; j++{
+					if(result = get_inode_fragment(buffer, curnode.double_indirect[i][j]) == -1){
+						return -1;
+						//Critical error!
+					}
+					if(result > -1){
+						break;
+					}
+				}
+				if(result > -1){
+					break;
+				}
+			}
+		}
+		if(result == -2){
+			log_msg("File does not exist. Path: %s", path);
+			return -1;
+			//Ridiculous. Doesn't exist in the direct, indirect, and double indirect... And they were all full!
+		}
 		patho = patho+num+1;
-		//Increment by the number we read, plus the / at the end of each file or path. 
+		cur_inode_number = result;
 	}
 	return cur_inode_number;
+	
 	
 }
 
@@ -207,7 +241,7 @@ void *sfs_init(struct fuse_conn_info *conn)
       }
 
       memset(data_bitmap,0,sizeof(data_bitmap));
-      int n = size_t + 4;
+      int n = MAX_NODES +3;
       for(int i = 0; i < n;i++){
           data_bitmap[i] = 1;
       }
@@ -219,47 +253,31 @@ void *sfs_init(struct fuse_conn_info *conn)
       memset(temp,0,BLOCK_SIZE);
       memcpy(temp,inode_bitmap,sizeof(inode_bitmap));
       if(block_write(2,&temp)>0){
-        log_msg("\n INODEBITMAP initialized");
+        log_msg("\n INODEBITAMP initialized");
       }
 
       //Initialize root
       int uid = getuid();
-      int gid = getegid();       
-      inode *root = malloc(sizeof(inode));
-      root->inode_number = 0;
-      root->size = sizeof(dirent);
-      root->num_blocks = 1;
-      root->uid = uid;
-      root->gid = gid;
-      root->mode = 0700;
-      root->inodetype = IDIR;
-      root->singleindirect =0;
-      root->doubleindirect =0;
-      //Initialize root dirent
-      char ent1[] = ".";
-      char ent2[] = "..";
-      dirent *tmp_dirent = malloc(sizeof(dirent));
-      direntry *tmp_ent1 = init_direntry(root,ent1);
-      direntry *tmp_ent2 = init_direntry(root,ent2);
-      tmp_dirent->entries[0] = tmp_ent1;
-      tmp_dirent->entries[1] = tmp_ent2;
-      n = n - 1;
-      if(block_write(n, tmp_dirent)>0){
-        log_msg("\n Root Directory Initialized");
-      }
+      int gid = getegid(); 
+
+      struct inode root;
+      root.inode_number = 0;
+      root.size = 0;
+      root.uid = uid;
+      root.gid = gid;
+      root.inodetype = IDIR;
+      root.singleindirect =0;
+      root.doubleindirect =0;
       memset(in_table,0,sizeof(in_table));
       in_table[0] = root;
       int b;
       char* buf = malloc(BLOCK_SIZE);
       memset(buf, 0, BLOCK_SIZE);
-      for(b = 3; b<MAX_SIZE+3; b++){
-        /*REALLY DANGEROUS AND COULD GET OUT OF BOUNDS PLEASE FIX*/
-          inode *tmp = in_table+(sizeof(BLOCK_SIZE)*(b-2)); //This can get out of bounds.
+      for(b =3; b<MAX_NODES+3; b++){
+          inode *tmp = in_table+(sizeof(BLOCK_SIZE) *(b-2));
           memcpy(buf, tmp, sizeof(buf));
-          //Nothin left to write
-          if(block_write(b,&buf) == 0){
-            break;
-      }
+          block_write(b,&buf);
+       }
 
       //inode_numbers explained: This is just a number to uniquely identify our inodes. 2 is always root.
       // The inode_number is the index of the inode in the global static inode array.
@@ -295,7 +313,7 @@ void *sfs_init(struct fuse_conn_info *conn)
     }
 
     memset(buffer,0,BLOCK_SIZE);
-    for (b =3;b<MAX_SIZE+3;++b){
+    for (b =3;b<MAX_NODES+3;++b){
       if(block_read(b, buffer)>0){
         inode *tmp = in_table+(sizeof(BLOCK_SIZE) *(b-2));
         memcpy(temp,buffer,sizeof(BLOCK_SIZE));
@@ -351,21 +369,21 @@ int sfs_getattr(const char *path, struct stat *statbuf)
     	return -1;
     }
     */
-    inode *cur_inode;
     cur_inode = get_inode(path);
-    cur_inode->access_time = time();
+    
     //statbuf->st_dev = 9001; //How are we supposed to know this?
    // statbuf->st_ino = (ino_t)inode_num;
-    statbuf->mode_t = cur_inode->mode; 
-    //statbuf->st_nlink = cur_inode.links; //Hardlinks not implemented
-    statbuf->uid_t = cur_inode->uid;
-    statbuf->gid_t = cur_inode->gid;
+    statbuf->mode_t = cur_inode.mode; 
+    statbuf->st_nlink = cur_inode.links; //Hardlinks not implemented
+    statbuf->uid_t = cur_inode.uid;
+    statbuf->gid_t = cur_inode.gid;
     //statbuf->st_rdev = 0; //What's a special file device id o_o
-    statbuf->st_size = cur_inode->size; //Remember to define all these in inode struct later.
-    statbuf->st_blocks = cur_inode->num_blocks; //Remember to define me
-    statbuf->st_atime = cur_inode->access_time;
-    statbuf->st_mtime = cur_inode->modify_time;
-    statbuf->st_ctime = cur_inode->create_time; 
+    statbuf->st_size = size; //Remember to define all these in inode struct later.
+    statbuf->st_blksize = BLOCK_SIZE;
+    statbuf->st_blocks = num_blocks; //Remember to define me
+    //statbuf->st_atime = 0;
+    //statbuf->st_mtime = 0;
+    //statbuf->st_ctime = 0; 
     
 //    struct stat {
 //    dev_t     st_dev;     /* ID of device containing file */
