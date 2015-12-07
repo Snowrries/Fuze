@@ -72,12 +72,13 @@ in the inode.
  #define IDIR 1  //Inode is a directory
 
  #define BLOCK_SIZE 512
- #define MAX_SIZE  256//512 is arbitrary
+ #define MAX_SIZE  32 
+ #define MAX_BLOCKS 128
  #define InodeStartAddr 4 //Need to Set where the inodes start in our data blocks
- 
- #define MAX_NODES ((BLOCK_SIZE*MAX_SIZE)/sizeof(struct inode)) 
- 
-char data_table[MAX_SIZE]; 
+ #define MAX_NODES_PER_BLOCK ((BLOCK_SIZE)/sizeof(struct inode)) 
+ #define MAX_NODES MAX_SIZE/MAX_NODES
+
+char data_table[MAX_BLOCKS]; 
 inode in_table[MAX_NODES];
 
  
@@ -194,7 +195,8 @@ void *sfs_init(struct fuse_conn_info *conn)
       }
       //Init Data bitmap
       memset(data_table,0,BLOCK_SIZE);
-      for(int i = 0; i < MAX_SIZE/MAX_NODES;i++){
+      int n  = MAX_NODES +2;
+      for(int i = 0; i < MAX_NODES;i++){
         data_table
       }
 

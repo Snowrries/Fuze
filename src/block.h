@@ -42,7 +42,7 @@ typedef struct inode_t {
   int inodetype; 
   int direct[22];
   indirect *single_indirect;
-  indirect *double_indirect;
+  indirect **double_indirect;
 } inode;
 
 extern inode in_table[];
