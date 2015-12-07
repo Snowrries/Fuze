@@ -83,7 +83,7 @@ char inode_bitmap[MAX_SIZE];
 inode in_table[MAX_NODES];
 
 
-direntry *init_direnty(inode *n, char *name){
+direntry *init_direntry(inode *n, char *name){
   direntry *new_dir = malloc(sizeof(direntry));
   strncpy(new_dir->name,name,sizeof(new_dir->name));
   new_dir->node = n;
@@ -241,8 +241,8 @@ void *sfs_init(struct fuse_conn_info *conn)
       char ent1[] = ".";
       char ent2[] = "..";
       dirent *tmp_dirent = malloc(sizeof(dirent));
-      direntry *tmp_ent1 = init_direnty(root,ent1);
-      direntry *tmp_ent2 = init_direnty(root,ent2);
+      direntry *tmp_ent1 = init_direntry(root,ent1);
+      direntry *tmp_ent2 = init_direntry(root,ent2);
       tmp_dirent->entries[0] = tmp_ent1;
       tmp_dirent->entries[1] = tmp_ent2;
       n = n - 1;
