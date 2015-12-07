@@ -95,12 +95,12 @@ int get_inode_fragment(char* frag, int direct){
 	direntry dirArray[16]; //512 bytes / block and 32 bytes/direntry. 16 direntries in a dirArray
 	int result = 0;
 	char buffer[PATH_MAX];
-	if(result = block_read(direct[i], dirArray) <= 0){
+	if(result = block_read(direct, dirArray) <= 0){
 		
 		return -1; //Couldn't read?
 	}
 	int j;
-	for(j = 0; j < 16; i++){
+	for(j = 0; j < 16; j++){
 		if(!strncmp(dirArray[j].name, buffer, 27)){
 			return dirArray[j].inode_number;
 		}
@@ -126,10 +126,14 @@ int get_inode(char *path){//Returns the inode_number of an inode
 	int found = 0 ;
 	char buffer[PATH_MAX];
 	int result;
+	int offset = 0;
 	int i;
 	int j;
+	int block_num;
+	const void buf[BLOCK_SIZE];
+	const void buf2[BLOCK_SIZE];
 	
-	while((num = num + parse_path(patho, buffer) + 1 ) <= running){
+	while((num = num + parse_path(&patho[offset], buffer) + 1 ) <= running){
 	//Path always ends in a /. At the last bit of the path, it'll return -1.
 	//That is, we found 'something/', or just '/'. if we find 'something', that's considered nothing.
 	//We end when we've parsed all the path.
@@ -149,7 +153,7 @@ int get_inode(char *path){//Returns the inode_number of an inode
 		
 
 	for(i = 0; i < 22; i++){
-		if(result = get_inode_fragment(buffer, curnode.direct) == -1){
+		if(result = get_inode_fragment(buffer, curnode.direct[i]) == -1){
 			if(num < running){
 				//There is more path, but we can't find the directory... That's an error.
 				log_msg("Invalid path! Path: %s", path);
@@ -166,9 +170,11 @@ int get_inode(char *path){//Returns the inode_number of an inode
 		//if result == -2, we need to check indirects.
 		//Indirect checking
 		if(result == -2){
-			
+			block_read(curnode.single_indirect, buf);
 			for(i = 0; i<128; i++){
-				if(result = get_inode_fragment(buffer, curnode.single_indirect.block) == -1){
+				//buf is an int array of length 128. 
+				
+				if(result = get_inode_fragment(buf[i], buffer) == -1){
 					if(num < running){
 						//There is more path, but we can't find the directory... That's an error.
 						log_msg("Invalid path! Path: %s", path);
@@ -184,9 +190,11 @@ int get_inode(char *path){//Returns the inode_number of an inode
 			}
 		}
 		if(result == -2){
+			block_read(curnode.double_indirect, buf);
 			for(i = 0; i<128; i++){
+				block_read(buf[i], buf2);
 				for (j = 0; j < 128; j++){
-					if(result = get_inode_fragment(buffer, curnode.double_indirect[i][j]) == -1){
+					if(result = get_inode_fragment(buf2[j], buffer ) == -1){
 						if(num < running){
 							//There is more path, but we can't find the directory... That's an error.
 							log_msg("Invalid path! Path: %s", path);
@@ -210,7 +218,7 @@ int get_inode(char *path){//Returns the inode_number of an inode
 			return -4;
 			//Ridiculous. Doesn't exist in the direct, indirect, and double indirect... And they were all full!
 		}
-		patho = patho+num+1;
+		offset = offset+num+1;
 		cur_inode_number = result;
 	}
 	return cur_inode_number;
@@ -225,12 +233,13 @@ int parse_path(char *path, char* buffer){
 	char a;
 	int pathlen = strnlen(path, PATH_MAX);
 	char tpath[pathlen+1];
-  strncpy(tpath, path, pathlen);
+	int offset = 0;
+	strncpy(tpath, path, pathlen);
 	tpath[pathlen] = '\0';
 	int i = 0 ;
-	while( (a = tpath[0]) != '/'){
+	while( (a = tpath[offset]) != '/'){
 		buffer[i] = a;
-		tpath=tpath+1;
+		offset++;
 		i++;
 		if(i == pathlen+1){ //pathlen is the length of the path minus the null byte, if there is one. 
 		//If we read to the null byte, and there wasn't a / preceding it, this path is invalid.
@@ -265,12 +274,11 @@ int find_parent(char *path, char* buf){
 */
 	
 	while (offset < pathlen){
-		if(numread = parse_path(buffer) < 0){
+		if(numread = parse_path(&tpath[offset], buffer) < 0){
 			retval = -1; //Error!
 			break;
 		}
 		offset = offset + numread + 1;
-		tpath = path+offset; 
 		if(offset == pathlen){
 			retval = 0;
 			break;
@@ -289,6 +297,8 @@ int find_parent(char *path, char* buf){
 
 void *sfs_init(struct fuse_conn_info *conn)
 {
+    int b;
+    int i;
     fprintf(stderr, "in bb-init\n");
     log_msg("\nsfs_init()\n");
     
@@ -300,11 +310,11 @@ void *sfs_init(struct fuse_conn_info *conn)
     */
     disk_open((SFS_DATA)->diskfile);
     
-    char* buf = BLOCK_SIZE;
-    if(!(block_read(0,buf)>0){
+    char* buf = malloc(BLOCK_SIZE);
+    if(!(block_read(0,buf)>0)){
       spb superblk;
       superblk.total_inodes = MAX_NODES;
-      superblk.total_datablocks = MAX_BLOCKS;
+      superblk.total_blocks = MAX_BLOCKS;
       char temp[BLOCK_SIZE];
       memset(temp,0,BLOCK_SIZE);
       memcpy(temp,&superblk,sizeof(superblk));
@@ -315,7 +325,7 @@ void *sfs_init(struct fuse_conn_info *conn)
 
       memset(data_bitmap,0,sizeof(data_bitmap));
       int n = MAX_NODES +4;
-      for(int i = 0; i < n;i++){
+      for(i = 0; i < n;i++){
           data_bitmap[i] = 1;
       }
       if(block_write(1,&data_bitmap) >0){
@@ -330,17 +340,15 @@ void *sfs_init(struct fuse_conn_info *conn)
       }
 
       //Initialize root
-      int uid = getuid();
-      int gid = getegid();       
+      int uid = getuid();      
       inode *root = malloc(sizeof(inode));
       root->inode_number = 0;
       root->size = sizeof(direntry)*2;
       root->uid = uid;
-      root->gid = gid;
       root->inodetype = IDIR;
       root->mode = 0700;
-      root->singleindirect =0;
-      root->doubleindirect =0;
+      root->singleindirect =-1;
+      root->doubleindirect =-1;
       //Initialize root dirent
       char ent1[] = ".";
       char ent2[] = "..";
@@ -355,7 +363,7 @@ void *sfs_init(struct fuse_conn_info *conn)
         log_msg("\n Root Directory Initialized");
       }
       memset(in_table,0,sizeof(in_table));
-      in_table[0] = root;
+      in_table[0] = *root;
       int b;
       char* buf = malloc(BLOCK_SIZE);
       memset(buf, 0, BLOCK_SIZE);
@@ -392,7 +400,7 @@ void *sfs_init(struct fuse_conn_info *conn)
     //Init data bitmap
     memset(buffer,0,BLOCK_SIZE);
     if(block_read(1, buffer)>0){
-       memcpy(data_table,buffer,sizeof(data_bitmap));
+       memcpy(data_bitmap,buffer,sizeof(data_bitmap));
     }
 
     //Init Inode Bitmap
@@ -405,7 +413,7 @@ void *sfs_init(struct fuse_conn_info *conn)
     for (b =3;b<MAX_NODES+3;++b){
       if(block_read(b, buffer)>0){
         inode *tmp = in_table+(sizeof(BLOCK_SIZE) *(b-2));
-        memcpy(temp,buffer,sizeof(BLOCK_SIZE));
+        memcpy(tmp,buffer,sizeof(BLOCK_SIZE));
         }
       }
 
@@ -509,7 +517,8 @@ int sfs_getattr(const char *path, struct stat *statbuf)
  //Returns free block number
  //Returns -1 on error
  int get_free_block(){
- 	for(int i = 0; i<MAX_BLOCKS; i++ ){
+ 	int i;
+ 	for(i = 0; i<MAX_BLOCKS; i++ ){
  		if(!data_bitmap[i]){
  			return i;
  		}
@@ -519,7 +528,8 @@ int sfs_getattr(const char *path, struct stat *statbuf)
  //Returns free inode number
  //Returns -1 on error
  int get_free_inode(){
- 	for(int i = 0; i<MAX_NODES; i++ ){
+ 	int i;
+ 	for(i = 0; i<MAX_NODES; i++ ){
  		if(!inode_bitmap[i]){
  			return i;
  		}
