@@ -64,8 +64,7 @@ We will have two levels of indirection, allowing for up to ~2gb files to be stor
  #define MAX_BLOCKS 128
  #define InodeStartAddr 1 //Need to Set where the inodes start in our data blocks
  #define MAX_NODES_PER_BLOCK ((BLOCK_SIZE)/sizeof(inode)) 
- #define MAX_NODES 64
- #define INODE_TLB_BLKS (MAX_NODES/NODES_PER_BLK)
+ #define MAX_NODES MAX_SIZE/MAX_NODES_PER_BLOCK
  #define MAX_PATH 32
 //More of a bytemap.
 char data_bitmap[MAX_BLOCKS]; 
@@ -296,12 +295,10 @@ int find_parent(char *path, char* buf){
 }
 
 
-
-
 void *sfs_init(struct fuse_conn_info *conn)
 {
     int b;
-    int k;
+    int i;
     fprintf(stderr, "in bb-init\n");
     log_msg("\nsfs_init()\n");
     
@@ -327,8 +324,7 @@ void *sfs_init(struct fuse_conn_info *conn)
       }
 
       memset(data_bitmap,0,sizeof(data_bitmap));
-      int n = INODE_TLB_BLKS +4;
-      int i;
+      int n = MAX_NODES +4;
       for(i = 0; i < n;i++){
           data_bitmap[i] = 1;
       }
@@ -344,44 +340,38 @@ void *sfs_init(struct fuse_conn_info *conn)
       }
 
       //Initialize root
-      int uid = getuid();    
+      int uid = getuid();      
       inode *root = malloc(sizeof(inode));
       root->inode_number = 0;
       root->size = sizeof(direntry)*2;
       root->uid = uid;
       root->inodetype = IDIR;
       root->mode = 0700;
-      root->single_indirect = -1;
-      root->double_indirect = -1;
+      root->singleindirect =-1;
+      root->doubleindirect =-1;
       //Initialize root dirent
       char ent1[] = ".";
       char ent2[] = "..";
-      direntry *tmp_dirent = calloc(16,sizeof(direntry));
+      direntry *tmp_dirent = 12*calloc(sizeof(direntry));
       direntry tmp_ent1 = init_direntry(0,ent1);
       direntry tmp_ent2 = init_direntry(0,ent2);
       tmp_dirent[0] = tmp_ent1;
       tmp_dirent[1] = tmp_ent2;
       int blk = get_free_block();
       root->direct[0] = blk;
-      memset(temp,0,BLOCK_SIZE);
-      memcpy(temp,tmp_dirent,sizeof(tmp_dirent));
-      int info = block_write(blk, &temp);
-      log_msg("\n %d", info);
-      
+      if(block_write(blk, tmp_dirent)>0){
+        log_msg("\n Root Directory Initialized");
+      }
       memset(in_table,0,sizeof(in_table));
       in_table[0] = *root;
-      log_msg("\n %d", sizeof(in_table));
-      log_msg("\n %d", sizeof(in_table[0]));
+      int b;
       char* buf = malloc(BLOCK_SIZE);
       memset(buf, 0, BLOCK_SIZE);
-      k=0;
-      for(b =3; b<INODE_TLB_BLKS+3; b++){
+      for(b =3; b<MAX_NODES+3; b++){
          /*REALLY DANGEROUS AND COULD GET OUT OF BOUNDS PLEASE FIX*/
-            //INODE_TLB_BLKS+3
-          inode *tmp = &in_table[k];
-          k = k+4;
+          inode *tmp = in_table+(sizeof(BLOCK_SIZE) *(b-2));
           memcpy(buf, tmp, sizeof(buf));
-          if(block_write(b,buf) == 0){
+          if(block_write(b,&buf) == 0){
             break;
           }
        }
@@ -389,15 +379,14 @@ void *sfs_init(struct fuse_conn_info *conn)
       //inode_numbers explained: This is just a number to uniquely identify our inodes. 2 is always root.
       // The inode_number is the index of the inode in the global static inode array.
      //Init superblock here
-    /*  int total_inodes;
-     int total_datablocks;
-  struct inodes_table global_table; //EWWW someone help me change this
-  struct super_operations s_op;  /* superblock methods */ 
+    /*	int total_inodes;
+	   int total_datablocks;
+	struct inodes_table global_table; //EWWW someone help me change this
+	struct super_operations s_op;  /* superblock methods */ 
   }
+
   else{
-    k=0;
     spb superblock;
-    log_msg("\n Reading");
     //SuperBlock is inited
     //Do a bunch of block reads
     //Buffer size should be the size of our inodebitmap/array
@@ -406,38 +395,30 @@ void *sfs_init(struct fuse_conn_info *conn)
     memset(buffer,0,BLOCK_SIZE);
     if(block_read(0, buffer)>0){
      memcpy(&superblock,buffer,sizeof(spb));
-     log_msg("\n Successful Superblock read");
     }
 
     //Init data bitmap
     memset(buffer,0,BLOCK_SIZE);
     if(block_read(1, buffer)>0){
        memcpy(data_bitmap,buffer,sizeof(data_bitmap));
-       log_msg("\n Successful Data bitmap read");
-
     }
 
     //Init Inode Bitmap
     memset(buffer,0,BLOCK_SIZE);
     if(block_read(2, buffer)>0){
        memcpy(inode_bitmap,buffer,sizeof(inode_bitmap));
-        log_msg("\n Successful Inode Bitmap read");
-
     }
 
     memset(buffer,0,BLOCK_SIZE);
-    for (b =3;b<INODE_TLB_BLKS+3;++b){
+    for (b =3;b<MAX_NODES+3;++b){
       if(block_read(b, buffer)>0){
-        inode *tmp = &in_table[k];
-        k=k+4;
+        inode *tmp = in_table+(sizeof(BLOCK_SIZE) *(b-2));
         memcpy(tmp,buffer,sizeof(BLOCK_SIZE));
-        log_msg("\n Successful Inode Table read");
-
         }
       }
 
   }
-    
+ 
   /*
   if(block_write(1,&inodes_bitmap)){
 
@@ -450,8 +431,6 @@ void *sfs_init(struct fuse_conn_info *conn)
     Have to set block sizes, buffer sizes, max write/reads, inodes
     */
     return SFS_DATA;
-    l
-
 }
 
 /**
@@ -619,15 +598,59 @@ int sfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 /** Remove a file */
 int sfs_unlink(const char *path)
 {
-    int retstat = 0;
-    log_msg("sfs_unlink(path=\"%s\")\n", path);
-    retstat = unlink(path);
-    if (retstat == -1){
-      //Log this error 
-      return errno;
-    }
-    
-    return retstat;
+	int j = 0;
+	log_msg("sfs_unlink(path=\"%s\")\n", path);
+	int inode_number;
+	int check;
+	char buffer[PATH_MAX];
+	int i = 0;
+	char buf[512];
+	char buf2[512];
+	inode_number = get_inode(path);
+	int indir = in_table[inode_number].single_indirect;
+	int indir2 = in_table[inode_number].double_indirect;
+	
+	if(find_parent(path, buffer)<1){
+		log_msg("Could not find parent while unlinking");
+		return -1; 
+	} 
+	inode_bitmap[inode_number] = 0;
+	while(check = direct[i] != -1){
+		data_bitmap[check] = 0;
+		i++;
+		if(i > 21){
+			break;
+		}
+	}
+	//Check indirects
+	if(check != -1){
+		block_read(indir, buf);
+		for(i = 0; i < 128; i++){
+			if(check = buf[i] != -1){
+				data_bitmap[check] = 0;
+			}
+			else{
+				break;
+			}
+		}
+		data_bitmap[indir] = 0;
+	}
+	if(check != -1){
+		block_read(indir2, buf);
+		for(i = 0; i < 128; i++){
+			block_read(buf[i], buf2);
+			for(j = 0; j < 128; j++ ){
+				if(check = buf2[j] != -1){
+					data_bitmap[check] = 0;
+				}
+				else{
+					break;
+				}
+			}
+			data_bitmap[buf[i]] = 0;
+		}
+		data_bitmap[indir] = 0;
+	}
 }
 
 /** File open operation
@@ -813,12 +836,6 @@ int get_parent_path( char* path, char* name; char* buffer){
 	buffer[b-a] = '\0';
 	return 0;
 	
-}
-int add_to_dirtree(const char* path, struct dirent entry){
-	char* pathy = get_parent_path(path);
-	get_inode(path);
-	
-	return 0;
 }
 
 /** Create a directory */
