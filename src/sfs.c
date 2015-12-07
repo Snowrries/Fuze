@@ -193,19 +193,24 @@ void *sfs_init(struct fuse_conn_info *conn)
     if(!(block_read(0,buf)>0){
       spb superblk;
       superblk.total_inodes = MAX_NODES;
-      superblk.total_datablocks = MAX_SIZE;
+      superblk.total_datablocks = MAX_BLOCKS;
       char temp[BLOCK_SIZE];
       memset(temp,0,BLOCK_SIZE);
       memcpy(temp,&superblk,sizeof(superblk));
 
-      if(block_write(0,temp) >0){
+      if(block_write(0,&temp) >0){
         log_msg("\n SUPERBLOCK initialized");
       }
 
-      memset(data_table,0,BLOCK_SIZE);
-      for(int i = 0; i < MAX_NODES;i++){
-
+      memset(data_table,0,sizeof(data_table));
+      int n = MAX_NODES +3;
+      for(int i = 0; i < n;i++){
+          data_table[i] = 1;
       }
+      if(block_write(1,&data_table) >0){
+        log_msg("\n DATABLOCK initialized");
+      }
+      //Initialize root
       int uid = getuid();
       int gid = getegid(); 
 
@@ -218,6 +223,16 @@ void *sfs_init(struct fuse_conn_info *conn)
       root.gid = gid;
       root.blocks = 0;
       root.inodetype = IDIR;
+      memset(in_table,0,sizeof(in_table));
+      in_table[0] = root;
+      int b;
+      char* buf = malloc(BLOCK_SIZE);
+      memset(buf, 0, BLOCK_SIZE);
+      for(b =2; b<MAX_NODES+2; ++b){
+          inode *tmp = in_table+(sizeof(BLOCK_SIZE) *(b-2));
+          memcpy(buf, tmp, sizeof(buf));
+          block_write(b,&buf);
+       }
 
       //inode_numbers explained: This is just a number to uniquely identify our inodes. 2 is always root.
       // The inode_number is the index of the inode in the global static inode array.
@@ -225,32 +240,37 @@ void *sfs_init(struct fuse_conn_info *conn)
     /*	int total_inodes;
 	   int total_datablocks;
 	struct inodes_table global_table; //EWWW someone help me change this
-	struct super_operations s_op;  /* superblock methods */
-      spb.total_inodes = MAX_NODES;
-      spb.total_datablocks = 9001;
-    //Completely arbitrary. I don't know how many datablocks we should have.
-      spb.global_table[0] = root;
+	struct super_operations s_op;  /* superblock methods */ 
   }
 
   else{
-
+    spb superblock;
     //SuperBlock is inited
     //Do a bunch of block reads
     //Buffer size should be the size of our inodebitmap/array
     //Read in inode_bitmap/array
-    if(block_read(1, buffer)>0){
-     // memcpy(/*Pointer to bitmap*/,buffer,sizeof(struct inodes_bitmap));
+    char* buffer = malloc(BLOCK_SIZE);
+    memset(buffer,0,BLOCK_SIZE);
+    if(block_read(0, buffer)>0){
+     memcpy(&superblock,buffer,sizeof(spb));
     }
 
     //Init data bitmap
+    memset(buffer,0,BLOCK_SIZE);
     if(block_read(1, buffer)>0){
-       //memcpy(/*Pointer to bitmap*/,buffer,sizeof(struct data_bitmap));
+       memcpy(data_table,buffer,sizeof(data_table));
     }
 
+    memset(buffer,0,BLOCK_SIZE);
+    for (b =2;b<MAX_NODES+2;++b){
+      if(block_read(b, buffer)>0){
+        inode *tmp = in_table+(sizeof(BLOCK_SIZE) *(b-2));
+        memcpy(temp,buffer,sizeof(BLOCK_SIZE));
+        }
+      }
+
   }
-  if(block_write(0,&spb) > 0){
-      log_msg("\n Superblock Initialized");
-  }
+ 
   /*
   if(block_write(1,&inodes_bitmap)){
 
