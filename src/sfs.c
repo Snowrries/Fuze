@@ -76,9 +76,10 @@ in the inode.
  #define MAX_BLOCKS 128
  #define InodeStartAddr 1 //Need to Set where the inodes start in our data blocks
  #define MAX_NODES_PER_BLOCK ((BLOCK_SIZE)/sizeof(struct inode)) 
- #define MAX_NODES MAX_SIZE/MAX_NODES
+ #define MAX_NODES MAX_SIZE/MAX_NODES_PER_BLOCK
 
-char data_table[MAX_BLOCKS]; 
+char data_bitmap[MAX_BLOCKS]; 
+char inode_bitmap[MAX_SIZE];
 inode in_table[MAX_NODES];
 
 /*
@@ -202,33 +203,40 @@ void *sfs_init(struct fuse_conn_info *conn)
         log_msg("\n SUPERBLOCK initialized");
       }
 
-      memset(data_table,0,sizeof(data_table));
+      memset(data_bitmap,0,sizeof(data_bitmap));
       int n = MAX_NODES +3;
       for(int i = 0; i < n;i++){
-          data_table[i] = 1;
+          data_bitmap[i] = 1;
       }
-      if(block_write(1,&data_table) >0){
-        log_msg("\n DATABLOCK initialized");
+      if(block_write(1,&data_bitmap) >0){
+        log_msg("\n DATABITMAP initialized");
       }
+
+      inode_bitmap[0] = 1;
+      memset(temp,0,BLOCK_SIZE);
+      memcpy(temp,inode_bitmap,sizeof(inode_bitmap));
+      if(block_write(2,&temp)>0){
+        log_msg("\n INODEBITAMP initialized");
+      }
+
       //Initialize root
       int uid = getuid();
       int gid = getegid(); 
 
       struct inode root;
-      root.inode_number = 2;
-      root.next = -1;
-      memcpy(root.path,"/",1);
+      root.inode_number = 0;
       root.size = 0;
       root.uid = uid;
       root.gid = gid;
-      root.blocks = 0;
       root.inodetype = IDIR;
+      root.singleindirect =0;
+      root.doubleindirect =0;
       memset(in_table,0,sizeof(in_table));
       in_table[0] = root;
       int b;
       char* buf = malloc(BLOCK_SIZE);
       memset(buf, 0, BLOCK_SIZE);
-      for(b =2; b<MAX_NODES+2; ++b){
+      for(b =3; b<MAX_NODES+3; b++){
           inode *tmp = in_table+(sizeof(BLOCK_SIZE) *(b-2));
           memcpy(buf, tmp, sizeof(buf));
           block_write(b,&buf);
@@ -258,11 +266,17 @@ void *sfs_init(struct fuse_conn_info *conn)
     //Init data bitmap
     memset(buffer,0,BLOCK_SIZE);
     if(block_read(1, buffer)>0){
-       memcpy(data_table,buffer,sizeof(data_table));
+       memcpy(data_table,buffer,sizeof(data_bitmap));
+    }
+
+    //Init Inode Bitmap
+    memset(buffer,0,BLOCK_SIZE);
+    if(block_read(2, buffer)>0){
+       memcpy(inode_bitmap,buffer,sizeof(inode_bitmap));
     }
 
     memset(buffer,0,BLOCK_SIZE);
-    for (b =2;b<MAX_NODES+2;++b){
+    for (b =3;b<MAX_NODES+3;++b){
       if(block_read(b, buffer)>0){
         inode *tmp = in_table+(sizeof(BLOCK_SIZE) *(b-2));
         memcpy(temp,buffer,sizeof(BLOCK_SIZE));

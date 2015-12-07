@@ -23,7 +23,7 @@ typedef struct superblock{ //Volume control block
 typedef struct direntry_t {
 	char name[27];
 	char type;
-	int inode_number;
+	inode *node;
 } direntry; //size 32 
 
 typedef struct dirent_t {
@@ -46,8 +46,8 @@ typedef struct inode_t {
 } inode;
 
 extern inode in_table[];
-extern char data_table[];
-
+extern char data_bitmap[];
+extern char inode_bitmap[];
 void disk_open(const char* diskfile_path);
 void disk_close();
 int block_read(const int block_num, void *buf);
