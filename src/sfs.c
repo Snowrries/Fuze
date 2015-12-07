@@ -109,8 +109,8 @@ struct inode {
   //blk = (inumber * sizeof(inode)) / blockSize;
   //sector = ((blk * blockSize) + inodeStartAddr) / sectorSize;
   //Things Specific to directory Inodes
-  int parent;
-  int child;
+//  int parent;
+//  int child;
   //Things Specfic to file Inodes
   int next;
   //Parent child and next are all inode_numbers. Look up in the global table to find the inode corresponding.
@@ -259,8 +259,6 @@ void *sfs_init(struct fuse_conn_info *conn)
 
       struct inode root;
       root.inode_number = 2;
-      root.parent = -1;
-      root.child = -1;
       root.next = -1;
       memcpy(root.path,"/",1);
       root.size = 0;
@@ -577,17 +575,50 @@ int sfs_write(const char *path, const char *buf, size_t size, off_t offset,
     
     return retstat;
 }
-
+int get_file_name(char* path, char* buffer){
+	int a = 0;
+	int b = strnlen(path, PATH_MAX);
+	char* patho = path;
+	while((a = a + (c=parse_path(patho, buffer)) ) < b ){
+		patho = patho + c;
+	}
+	return c;
+	
+}
+int get_parent_path( char* path, char* name; char* buffer){
+	int a;
+	int b;
+	a = strlen(name);
+	b = strlen(path);
+	buffer = strncpy(buffer, name, (b-a));
+	buffer[b-a] = '\0';
+	return 0;
+	
+}
+int add_to_dirtree(const char* path, struct dirent entry){
+	char* pathy = get_parent_path(path);
+	get_inode(path);
+	
+	return 0;
+}
 
 /** Create a directory */
 int sfs_mkdir(const char *path, mode_t mode)
 {
-    int retstat = 0;
-    log_msg("\nsfs_mkdir(path=\"%s\", mode=0%3o)\n",
-	    path, mode);
-   
-    
-    return retstat;
+	int a;
+	a = get_inode(spb,path); //spb = superblock
+	if( a>0 && spb.global_table[a].inodetype == IDIR){
+		return -1; //Error! 
+	}
+	struct dirent entry;
+	get_file_name(path,entry.d_name);
+	entry.d_type = DT_UNKNOWN;
+	if(add_to_dirtree(path, entry)<0){
+		return -1;
+	}
+	int retstat = 0;
+	//log_msg("\nsfs_mkdir(path=\"%s\", mode=0%3o)\n",path, mode);
+	return retstat;
 }
 
 
