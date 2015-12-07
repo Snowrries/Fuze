@@ -16,18 +16,18 @@
 
 typedef struct indirect_t {
 	int blocks[128]; //stores block numbers of other blocks which contain dirent blocks or another indirect_t
-} indirect;
+}indirect;
 
 typedef struct superblock{ //Volume control block
 	int total_inodes;
 	int total_blocks;
 	int itable_block_num; //block location of our inode table
-} spb; //This thing must be exactly 512 bytes.(write to blocknumber 0)
+}spb; //This thing must be exactly 512 bytes.(write to blocknumber 0)
 
 typedef struct direntry_t {
 	char name[28];
-	inode *node; 
-} direntry; //size 32 
+	int inode_number; 
+}direntry; //size 32 
 
 typedef struct dirent_t {
 	direntry entries[16];
@@ -47,7 +47,7 @@ typedef struct inode_t {
    /*define IFILE 0 //Inode is a file
    define IDIR 1  //Inode is a directory*/
   int inodetype; 
-  int direct[22];
+  int directory[22];
   indirect *single_indirect;
   indirect **double_indirect;
 } inode;
