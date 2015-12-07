@@ -82,6 +82,13 @@ char data_bitmap[MAX_BLOCKS];
 char inode_bitmap[MAX_SIZE];
 inode in_table[MAX_NODES];
 
+
+direntry *init_direnty(inode *n, char *name){
+  direntry *new_dir = malloc(sizeof(direntry));
+  strncpy(new_dir->name,name,sizeof(new_dir->name));
+  new_dir->node = n;
+  return new_dir
+}
 /*
 //Allen: I don't know how to bitmap, so can we just be inefficient and use an array? :^)
 struct inodes_bitmap{
@@ -204,7 +211,7 @@ void *sfs_init(struct fuse_conn_info *conn)
       }
 
       memset(data_bitmap,0,sizeof(data_bitmap));
-      int n = MAX_NODES +3;
+      int n = MAX_NODES + 4;
       for(int i = 0; i < n;i++){
           data_bitmap[i] = 1;
       }
@@ -216,31 +223,45 @@ void *sfs_init(struct fuse_conn_info *conn)
       memset(temp,0,BLOCK_SIZE);
       memcpy(temp,inode_bitmap,sizeof(inode_bitmap));
       if(block_write(2,&temp)>0){
-        log_msg("\n INODEBITAMP initialized");
+        log_msg("\n INODEBITMAP initialized");
       }
 
       //Initialize root
       int uid = getuid();
-      int gid = getegid(); 
-
-      struct inode root;
-      root.inode_number = 0;
-      root.size = 0;
-      root.uid = uid;
-      root.gid = gid;
-      root.inodetype = IDIR;
-      root.singleindirect =0;
-      root.doubleindirect =0;
+      int gid = getegid();       
+      inode *root = malloc(sizeof(inode));
+      root->inode_number = 0;
+      root->size = 0;
+      root->uid = uid;
+      root->gid = gid;
+      root->inodetype = IDIR;
+      root->singleindirect =0;
+      root->doubleindirect =0;
+      //Initialize root dirent
+      char ent1[] = ".";
+      char ent2[] = "..";
+      dirent *tmp_dirent = malloc(sizeof(dirent));
+      direntry *tmp_ent1 = init_direnty(root,ent1);
+      direntry *tmp_ent2 = init_direnty(root,ent2);
+      tmp_dirent->entries[0] = tmp_ent1;
+      tmp_dirent->entries[1] = tmp_ent2;
+      n = n - 1;
+      if(block_write(n, tmp_dirent)>0){
+        log_msg("\n Root Directory Initialized");
+      }
       memset(in_table,0,sizeof(in_table));
       in_table[0] = root;
       int b;
       char* buf = malloc(BLOCK_SIZE);
       memset(buf, 0, BLOCK_SIZE);
-      for(b =3; b<MAX_NODES+3; b++){
-          inode *tmp = in_table+(sizeof(BLOCK_SIZE) *(b-2));
+      for(b = 3; b<MAX_NODES+3; b++){
+        /*REALLY DANGEROUS AND COULD GET OUT OF BOUNDS PLEASE FIX*/
+          inode *tmp = in_table+(sizeof(BLOCK_SIZE)*(b-2)); //This can get out of bounds.
           memcpy(buf, tmp, sizeof(buf));
-          block_write(b,&buf);
-       }
+          //Nothin left to write
+          if(block_write(b,&buf) == 0){
+            break;
+      }
 
       //inode_numbers explained: This is just a number to uniquely identify our inodes. 2 is always root.
       // The inode_number is the index of the inode in the global static inode array.

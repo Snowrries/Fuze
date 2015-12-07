@@ -21,9 +21,8 @@ typedef struct superblock{ //Volume control block
 } spb; //This thing must be exactly 512 bytes.(write to blocknumber 0)
 
 typedef struct direntry_t {
-	char name[27];
-	char type;
-	inode *node;
+	char name[28];
+	inode *node; 
 } direntry; //size 32 
 
 typedef struct dirent_t {
