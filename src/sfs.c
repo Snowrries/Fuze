@@ -91,23 +91,21 @@ direntry *init_direntry(int n, char *name){
 //If any link directly to the requested path fragment, it will return 0. 
 //If it doesn't exist and will not be in the indirect nodes, it will return -1. 
 //If it doesn't exist but might be in an indirect, it will return 1.
-int get_inode_fragment(char* frag, int *direct){
+int get_inode_fragment(char* frag, int direct){
 	direntry dirArray[16]; //512 bytes / block and 32 bytes/direntry. 16 direntries in a dirArray
 	int result = 0;
 	char buffer[PATH_MAX];
-	int i;
-	for(i = 0; i < 22; i++){
-		if(result = block_read(direct[i], dirArray) <= 0){
-			
-			return -1; //Couldn't read?
-		}
-		int j;
-		for(j = 0; j < 16; i++){
-			if(!strncmp(dirArray[j].name, buffer, 27)){
-				return dirArray[j].inode_number;
-			}
+	if(result = block_read(direct[i], dirArray) <= 0){
+		
+		return -1; //Couldn't read?
+	}
+	int j;
+	for(j = 0; j < 16; i++){
+		if(!strncmp(dirArray[j].name, buffer, 27)){
+			return dirArray[j].inode_number;
 		}
 	}
+
 	return -2; //Doesn't exist in given node.
 }
 //get_inode takes a path and returns an inode_number, checking for errors along the way.
@@ -126,6 +124,8 @@ int get_inode(char *path){//Returns the inode_number of an inode
 	int found = 0 ;
 	char buffer[PATH_MAX];
 	int result;
+	int i;
+	int j;
 	
 	while((num = num + parse_path(patho, buffer) + 1 ) <= running){
 	//Path always ends in a /. At the last bit of the path, it'll return -1.
@@ -144,14 +144,22 @@ int get_inode(char *path){//Returns the inode_number of an inode
 			//Otherwise, we're just at the last part.
 		}
 		//Guaranteed to be a directory
+		
+
+	for(i = 0; i < 22; i++){
 		if(result = get_inode_fragment(buffer, curnode.direct) == -1){
+			log_msg("File does not exist. Path: %s", path);
 			return -1;
 			//Critical error!
 		}
+		if(result > -1){
+			break;
+		}
+	}
 		//if result == -2, we need to check indirects.
 		//Indirect checking
 		if(result == -2){
-      int i;
+			
 			for(i = 0; i<128; i++){
 				if(result = get_inode_fragment(buffer, curnode.single_indirect.block) == -1){
 				log_msg("File does not exist. Path: %s", path);
@@ -164,7 +172,6 @@ int get_inode(char *path){//Returns the inode_number of an inode
 			}
 		}
 		if(result == -2){
-      int j;
 			for(i = 0; i<128; i++){
 				for (j = 0; j < 128; j++){
 					if(result = get_inode_fragment(buffer, curnode.double_indirect[i][j]) == -1){
