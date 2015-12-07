@@ -16,8 +16,8 @@ typedef struct indirect_t {
 
 typedef struct superblock{ //Volume control block
 	int total_inodes;
-	int blocksize;
-	int table_block_num; //block location of our inode table
+	int total_blocks;
+	int itable_block_num; //block location of our inode table
 } spb; //This thing must be exactly 512 bytes.(write to blocknumber 0)
 
 typedef struct direntry_t {
@@ -40,11 +40,13 @@ typedef struct inode_t {
    /*define IFILE 0 //Inode is a file
    define IDIR 1  //Inode is a directory*/
   int inodetype; 
-  int direct[13];
-  indirect single_indirect;
-  indirect double_indirect;
+  int direct[22];
+  indirect *single_indirect;
+  indirect **double_indirect;
 } inode;
 
+extern inode in_table[];
+extern char data_table[];
 
 void disk_open(const char* diskfile_path);
 void disk_close();
