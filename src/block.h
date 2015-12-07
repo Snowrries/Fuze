@@ -29,10 +29,6 @@ typedef struct direntry_t {
 	int inode_number; 
 }direntry; //size 32 
 
-typedef struct dirent_t {
-	direntry entries[16];
-}dirent;
-
 typedef struct inode_t {
   //Universal to all Inodes
   int inode_number; //root starts with inode #2
