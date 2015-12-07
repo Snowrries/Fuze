@@ -72,14 +72,21 @@ in the inode.
  #define IDIR 1  //Inode is a directory
 
  #define BLOCK_SIZE 512
+ #define MAX_SIZE 64 //64 is arbitrary
+ #define InodeStartAddr 1 //Need to Set where the inodes start in our data blocks
+ #define MAX_NODES ((BLOCK_SIZE*MAX_SIZE)/sizeof(struct inode)) 
+ 
+
+ /*
  #define MAX_SIZE  32 
  #define MAX_BLOCKS 128
  #define InodeStartAddr 4 //Need to Set where the inodes start in our data blocks
  #define MAX_NODES_PER_BLOCK ((BLOCK_SIZE)/sizeof(struct inode)) 
  #define MAX_NODES MAX_SIZE/MAX_NODES
-
+*/
 char data_table[MAX_BLOCKS]; 
 inode in_table[MAX_NODES];
+
 
  
 /*
@@ -90,7 +97,7 @@ struct inodes_bitmap{
 
 struct data_bitmap{
 	int bitmap[size];
-};*/
+};
 
 //First thing in our memory/disk
 //Superblock keeps track of our filesystem info
@@ -360,7 +367,7 @@ int sfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
     log_msg("\nsfs_create(path=\"%s\", mode=0%03o, fi=0x%08x)\n",
 	    path, mode, fi);
 
-    int block = /*Find the first unset block*/
+    int block = get_free_block();/*Find the first unset block*/ 
     struct inode *new_node = get_inode((char*) path);
 
     if(new_node != NULL){
@@ -488,7 +495,50 @@ int sfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse
     }
     /*Tony: We have to convert file handler to an index and determine location in our
     virtual disk file.
+    Flesh code:
     */
+    struct inode cur;
+    char* buf = buffer;
+    int inode_num = get_inode(path);
+    cur = spb.global_inode_table[inode_num];
+    curset = offset;
+    off = (int)(offset / BLOCK_SIZE);
+    int indir1;
+    int indir2;
+    int temp;
+    size_t leftover = size;
+    char* blockpointer;
+    
+    
+    
+    while(leftover > 0){
+	    //WORK IN PROGRESS
+	    if(off < 13){
+	    	blockpointer = cur.db_addr[off];
+	    }
+	    else if(off < 157){//Indir1
+	    	off = off-12;
+	    	indir1 = off/12;
+	    	off = off-(indir1*12);
+	    	blockpointer = cur.indirect1[indir1][off];
+	    	
+	    }
+	    else if(off < 1885) {//This is 12^3 +157
+	    //Indir2
+	    	off = off - 156; //These blocks are taken care of by indir 1 and the direct map
+	    	indir2 = off/144;
+	    	temp = off-(indir2*144);
+	    	indir1 = temp/12;
+	    	off = off-(indir1*12);
+	    	blockpointer = cur.indirect2[indir2][indir1][off];
+	    	
+	    }
+	    memcpy(buffer, blockpointer, BLOCK_SIZE);
+	    buffer = buffer+BLOCK_SIZE;
+	    leftover = curset - BLOCK_SIZE;
+	    off++;
+    }
+
     return retstat;
 }
 
