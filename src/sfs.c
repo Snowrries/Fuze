@@ -73,48 +73,11 @@ in the inode.
 
  #define BLOCK_SIZE 512
  #define MAX_SIZE 64 //64 is arbitrary
- #define InodeStartAddr 1 //Need to Set where the inodes start in our data blocks
+ #define InodeStartAddr 4 //Need to Set where the inodes start in our data blocks
  #define MAX_NODES ((BLOCK_SIZE*MAX_SIZE)/sizeof(struct inode)) 
  
-struct indir1{
-	struct* inode indirect[BLOCK_SIZE/sizeof(struct *inode)]
-	//an array of inode pointers.
-};
-struct indir2{
-	struct* indir1 indirect2[BLOCK_SIZE/sizeof(struct *indir1)]
-	//an array of indir 1 pointers. 
-};
+
  
- 
- 
- 
-struct inode {
-  //Universal to all Inodes
-  int inode_number; //root starts with inode #2
-  int mode; //can this file be read/written/executed
-  struct icommon *on-disk;
-  int uid; //Do we need this
-  int gid; //Do we need this
-  int size;
-   /*define IFILE 0 //Inode is a file
-   define IDIR 1  //Inode is a directory*/
-  int inodetype; 
-  int db_addr[13]; //datablock addresses; 13 is used for indirect pointers
-  char name[64]; // Max name size is 64 chars. PATH_MAX is a thing.
-  struct indir1 indirect1;
-  struct indir2 indirect2;
-  int num_blocks;
-  int links;
-  //To read inode number 32 we do 32*sizeof(inode) + indoestartaddr
-  //blk = (inumber * sizeof(inode)) / blockSize;
-  //sector = ((blk * blockSize) + inodeStartAddr) / sectorSize;
-  //Things Specific to directory Inodes
-//  int parent;
-//  int child;
-  //Things Specfic to file Inodes
-  int next;
-  //Parent child and next are all inode_numbers. Look up in the global table to find the inode corresponding.
-};
 /*
 //Allen: I don't know how to bitmap, so can we just be inefficient and use an array? :^)
 struct inodes_bitmap{
@@ -136,42 +99,14 @@ struct data_bitmap{
 //Allen: superblock never initted
 
 //Keeps track of inodes.
-struct inodes_table {
-	struct inode table[MAX_NODES];
-}; 
 
-struct superblock{
-	int total_inodes;
-	int total_datablocks;
-	struct inodes_table global_table; //EWWW someone help me change this
-	struct super_operations s_op;  /* superblock methods */
-};
 
 //Superblock Operations
 
 //The most important item in the superblock object is s_op, which is the superblock operations table. The superblock operations table is represented by struct super_operations and is defined in <linux/fs.h>. It looks like this:
 
 //TOny: We may not need any or some of these.
-struct super_operations {
-        struct inode *(*alloc_inode) (struct super_block *sb);
-        void (*destroy_inode) (struct inode *);
-        void (*read_inode) (struct inode *);
-        void (*dirty_inode) (struct inode *);
-        void (*write_inode) (struct inode *, int);
-        void (*put_inode) (struct inode *);
-        void (*drop_inode) (struct inode *);
-        void (*delete_inode) (struct inode *);
-        void (*put_super) (struct super_block *);
-        void (*write_super) (struct super_block *);
-        int (*sync_fs) (struct super_block *, int);
-        void (*write_super_lockfs) (struct super_block *);
-        void (*unlockfs) (struct super_block *);
-        int (*statfs) (struct super_block *, struct statfs *);
-        int (*remount_fs) (struct super_block *, int *, char *);
-        void (*clear_inode) (struct inode *);
-        void (*umount_begin) (struct super_block *);
-        int (*show_options) (struct seq_file *, struct vfsmount *);
-};
+
 
 struct inode *get_inode(char *path){
   int i;
@@ -186,7 +121,7 @@ struct inode *get_inode(char *path){
 
 //Find Inode part 2
 
-int get_inode(struct superblock superblock, char *path){//Returns the inode_number of an inode
+int get_inode_kai(struct superblock superblock, char *path){//Returns the inode_number of an inode
 	char buffer[PATH_MAX];
 	int num;
 	int cur_inode_number = 2; //Start at root!
@@ -254,6 +189,18 @@ void *sfs_init(struct fuse_conn_info *conn)
     
     char* buf = BLOCK_SIZE;
     if(!(block_read(0,buf)>0){
+      //First setup our SUPERBLOCK
+      spb superblk;
+      superblk.total_inodes = MAX_NODES;
+      superblk.total_datablocks = MAX_SIZE;
+      char temp[BLOCK_SIZE];
+      memset(temp,0,BLOCK_SIZE);
+      memcpy(temp,&superblk,sizeof(superblk));
+
+      if(block_write(0,temp) >0){
+        log_msg("\n SUPERBLOCK initialized");
+      }
+      
       int uid = getuid();
       int gid = getegid(); 
 
@@ -269,7 +216,7 @@ void *sfs_init(struct fuse_conn_info *conn)
 
       //inode_numbers explained: This is just a number to uniquely identify our inodes. 2 is always root.
       // The inode_number is the index of the inode in the global static inode array.
-     global struct superblock spb;
+     struct superblock spb;
      //Init superblock here
     /*	int total_inodes;
 	   int total_datablocks;
