@@ -38,18 +38,14 @@ typedef struct inode_t {
   int inode_number; //root starts with inode #2
   mode_t mode; //can this file be read/written/executed
   uid_t uid; //Do we need this
-  gid_t gid; //Do we need this
   size_t size;
   int num_blocks;
-  time_t access_time;
-  time_t modify_time;
-  time_t create_time;
    /*define IFILE 0 //Inode is a file
    define IDIR 1  //Inode is a directory*/
   int inodetype; 
-  int directory[22];
-  indirect *single_indirect;
-  indirect **double_indirect;
+  int direct[22];
+  int single_indirect;
+  int double_indirect;
 } inode;
 
 extern inode in_table[];
