@@ -229,7 +229,7 @@ int get_inode(const char *path){//Returns the inode_number of an inode
 		offset = offset+num+1;
 		cur_inode_number = result;
 	}
-
+  log_msg("\n Buffer printing");
 	return cur_inode_number;
 }
 //Finds the leftmost segment of a valid pathname, and returns it terminated by a null byte, without the ending /
@@ -361,7 +361,7 @@ void *sfs_init(struct fuse_conn_info *conn)
       root->uid = uid;
       root->gid = gid;
       root->inodetype = IDIR;
-      root->mode = 0777;
+      root->mode = 0755;
       root->single_indirect = -1;
       root->double_indirect = -1;
       //Initialize root dirent
@@ -491,16 +491,17 @@ int sfs_getattr(const char *path, struct stat *statbuf)
 
     memset(statbuf, 0, sizeof(struct stat));
     inode_num = get_inode(path);
+    log_msg("\n inode_num: %d", inode_num);
     if(inode_num >-1){
       cur_inode = in_table[inode_num];
       log_msg("\n Logging inode stat");
-      //statbuf->st_dev = 9001; //How are we supposed to know this?
-      // statbuf->st_ino = (ino_t)inode_num;
+      statbuf->st_dev = 0; //How are we supposed to know this?
+      statbuf->st_ino = inode_num;
       statbuf->st_mode = cur_inode.mode; 
-      //statbuf->st_nlink = cur_inode->links; //Hardlinks not implemented
+      statbuf->st_nlink = 0; //Hardlinks not implemented
       statbuf->st_uid = cur_inode.uid;
       statbuf->st_gid = cur_inode.gid;
-      //statbuf->st_rdev = 0; //What's a special file device id o_o
+      statbuf->st_rdev = 0; //What's a special file device id o_o
       statbuf->st_size = cur_inode.size; //Remember to define all these in inode struct later.
       statbuf->st_blocks = cur_inode.num_blocks; //Remember to define me
       statbuf->st_atime = 0;
@@ -508,7 +509,9 @@ int sfs_getattr(const char *path, struct stat *statbuf)
       statbuf->st_ctime = 0; 
     }
     else{
-        log_msg("\n Inode not found");
+          log_msg("\n Inode not found");
+          retstat = -1;
+
     }
     log_stat(statbuf);
    
@@ -923,6 +926,8 @@ int sfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offse
 	//Path is a directory. 
 	//Ignore filler, ignore offset, ignore fi. 
 	//Put the entirety of the directory entries into buf.
+  log_msg("\nbb_readdir(path=\"%s\", buf=0x%08x, filler=0x%08x, offset=%lld, fi=0x%08x)\n",
+      path, buf, filler, offset, fi);
 	int dirinbuf;
 	int i;
 	int j;
@@ -986,7 +991,9 @@ int sfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offse
 			}
 		}
 	}
-	
+  log_msg("\n Hello Worldd");
+  
+	log_msg("\n Hello Worldd");
 	
 	
 	
