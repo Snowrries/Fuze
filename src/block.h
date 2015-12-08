@@ -12,7 +12,7 @@
 #define _BLOCK_H_
 
 #define BLOCK_SIZE 512
-
+#define DIRECT_SIZE 14
 
 typedef struct indirect_t {
 	int blocks[128]; //stores block numbers of other blocks which contain dirent blocks or another indirect_t
@@ -36,10 +36,13 @@ typedef struct inode_t {
   uid_t uid; //Do we need this
   size_t size;
   int num_blocks;
+  time_t access_time;
+  time_t create_time;
+  time_t modify_time;
    /*define IFILE 0 //Inode is a file
    define IDIR 1  //Inode is a directory*/
   int inodetype; 
-  int direct[22];
+  int direct[DIRECT_SIZE];
   int single_indirect;
   int double_indirect;
 } inode;

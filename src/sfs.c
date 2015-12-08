@@ -154,7 +154,7 @@ int get_inode(const char *path){//Returns the inode_number of an inode
 		//Guaranteed to be a directory
 		
 
-	for(i = 0; i < 22; i++){
+	for(i = 0; i < DIRECT_SIZE; i++){
 		if(result = get_inode_fragment(buffer, curnode.direct[i]) == -1){
 			if(num < running){
 				//There is more path, but we can't find the directory... That's an error.
