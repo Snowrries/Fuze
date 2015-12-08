@@ -993,7 +993,9 @@ int sfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offse
 	inode curnode;
 	int running = 0 ;
 	int done = 0;
-	int inode_num = get_inode(path);
+  fpath[PATH_MAX];
+  sfs_fullpath(fpath,path);
+	int inode_num = get_inode(fpath);
 	curnode = in_table[inode_num];
 	dirinbuf = sizeof(buf)/sizeof(direntry);
 	direntry buffer[4];
