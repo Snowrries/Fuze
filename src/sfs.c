@@ -557,6 +557,7 @@ int sfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
     log_msg("\nsfs_create(path=\"%s\", mode=0%03o, fi=0x%08x)\n",path, mode, fi);
     int inode_num;
     int block;
+    inode * new_node;
     const char* buf = calloc(1,BLOCK_SIZE);
     if(inode_num > 0){
       return sfs_open(path, fi);
@@ -564,8 +565,9 @@ int sfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
     else if(inode_num == -1){
     	inode_num = get_free_inode();
     	block = get_free_block();/*Find the first unset block*/
-        data_bitmap[block] = 1;
+      data_bitmap[block] = 1;
     	inode_bitmap[inode_num] = 1;
+      new_node = malloc(sizeof(inode)); //128 bytes
     	new_node->inode_number = inode_num;
     	new_node->mode = mode;
     	new_node->size = 0;
@@ -604,11 +606,11 @@ int sfs_unlink(const char *path)
 	//char buffer2[PATH_MAX];
 	int i = 0;
 	int pardone = 0;
-	char buf[512];
-	char buf2[512];
+	direntry buf[512];
+	direntry buf2[512];
 	inode_number = get_inode(path);
-  	inode dir = in_table[inode_number];
-  	direntry par;
+  inode dir = in_table[inode_number];
+  inode par;
 	int indir = dir.single_indirect;
 	int indir2 = dir.double_indirect;
 	if(find_parent(path, buffer)<1){
@@ -616,14 +618,18 @@ int sfs_unlink(const char *path)
 		return -1; 
 	} 
 	parent_inode_n = get_inode(buffer);// buffer contains path of parent. 
-	par = in_table[parent_inode];//par is the parent inode. This is a directory. 
+	par = in_table[parent_inode_n];//par is the parent inode. This is a directory inode. 
 	//Remove the dirent of the child from parent directory
+  direntry *tmp;
 	for(i = 0; i < DIRECT_SIZE; i++){
-		if(par.direct[i].inode_number == inode_number){
-			par.direct[i] = -1;
-			pardone = 1;
-			break;
-		}
+      block_read(par.direct[i],tmp);
+    for(j =0; j < 16; j++){
+		  if(tmp[j].inode_number == inode_number){
+			 tmp[j].inode_number = -1;
+			 pardone = 1;
+			 break;
+		  }
+    }
 	}
 	if(pardone == 0){
 		if(block_read(par.single_indirect, buf) < 0){
@@ -642,7 +648,7 @@ int sfs_unlink(const char *path)
 			return -1; //error
 		}
 		for(i = 0; i < 128; i++){
-			if(block_read(buf[i],buf2)<0){
+			if(block_read(buf.blocks[i],buf2)<0){
 				return -1; //error
 			}	
 			for(j = 0; j < 128; j++){
@@ -768,8 +774,8 @@ int sfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse
     	int retstat = 0;
     	log_msg("\nsfs_read(path=\"%s\", buf=0x%08x, size=%d, offset=%lld, fi=0x%08x)\n", path, buf, size, offset, fi);
 
-  	int bufferblocks;
-  	int doublebufferblx;
+  int bufferblocks;
+  int doublebufferblx;
 	int i;
 	int j;
 	int k;
@@ -783,13 +789,17 @@ int sfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse
 		return -1;//Error
 	}
 	curnode = in_table[inode_num];
-	bufferblocks = sizeof(buf)/BLOCK_SIZE;
+	bufferblocks = offset/BLOCK_SIZE;
 	char buffer[sizeof(buf)];
 	char indirbuf[128];
 	char indirbuf2[128];
 	//Here, we find the block that our offset is in; that is, our start block.
 	//Then we find the offset from the beginning of the block that we have found,
 	//And then we set i = -1, -2, or -3 based on where we started our block.
+  if(size <= 0){
+    //Nothing to read
+    return -1;
+  }
 	if(bufferblocks < DIRECT_SIZE){
 		start = offset-bufferblocks*BLOCK_SIZE;
 		i = -1;
@@ -803,7 +813,7 @@ int sfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse
 	else if(bufferblocks < (DIRECT_SIZE + 128 + 16384)){
 		doublebufferblx = bufferblocks/BLOCK_SIZE;
 		bufferblocks = bufferblocks - DIRECT_SIZE - 128 - (doublebufferblx * 128);
-		start = offset - (doublebufferblx*BLOCK_SIZE*BLOCKSIZE) - (bufferblocks*BLOCK_SIZE) - (DIRECT_SIZE * BLOCK_SIZE) - (128 * BLOCK_SIZE);
+		start = offset - (doublebufferblx*BLOCK_SIZE*BLOCK_SIZE) - (bufferblocks*BLOCK_SIZE) - (DIRECT_SIZE * BLOCK_SIZE) - (128 * BLOCK_SIZE);
 		i = -3;
 	}
 	if(i > -2){ // Direct. 
@@ -874,7 +884,7 @@ int sfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse
 				running = running+(BLOCK_SIZE-start);
 				if(running == size){
 					return size;
-.				}
+			}
 				start = 0;
 			}
 		}	
@@ -932,7 +942,7 @@ int sfs_write(const char *path, const char *buf, size_t size, off_t offset,
 	else if(bufferblocks < (DIRECT_SIZE + 128 + 16384)){
 		doublebufferblx = bufferblocks/BLOCK_SIZE;
 		bufferblocks = bufferblocks - DIRECT_SIZE - 128 - (doublebufferblx * 128);
-		start = offset - (doublebufferblx*BLOCK_SIZE*BLOCKSIZE) - (bufferblocks*BLOCK_SIZE) - (DIRECT_SIZE * BLOCK_SIZE) - (128 * BLOCK_SIZE);
+		start = offset - (doublebufferblx*BLOCK_SIZE*BLOCK_SIZE) - (bufferblocks*BLOCK_SIZE) - (DIRECT_SIZE * BLOCK_SIZE) - (128 * BLOCK_SIZE);
 		i = -3;
 	}
 	if(i > -2){ // Direct. 
@@ -1037,7 +1047,7 @@ int sfs_write(const char *path, const char *buf, size_t size, off_t offset,
 //Returns length of file name
 //Places the file name into the buffer;
 
-int get_file_name(char* path, char* buffer){
+int get_file_name(const char* path, char* buffer){
 	int a = 0;
 	int b = strnlen(path, PATH_MAX);
 	int c = 0;
@@ -1051,7 +1061,7 @@ int get_file_name(char* path, char* buffer){
 	
 }
 
-int get_parent_path( char* path, char* name, char* buffer){
+int get_parent_path(const char* path, char* name, char* buffer){
 	int a;
 	int b;
 	a = strlen(name);
@@ -1066,6 +1076,7 @@ int get_parent_path( char* path, char* name, char* buffer){
 //Returns the blocknum that it writes to.
 //Set the block num in the directory pointed to by the inode.
 //-1 if there is no free block.
+/*
 int writedirent(direntry entry, int inode_number){
 	log_msg("writedirent");
 	int block;
@@ -1074,8 +1085,9 @@ int writedirent(direntry entry, int inode_number){
 	inode dir;
 	char buffer[BLOCK_SIZE];
 	char buffer2[BLOCK_SIZE];
+  //NO
 	block = get_free_block();
-	block_write(block, entry);
+	//block_write(block, &entry);
 	dir = in_table[inode_number];
 	if(dir.inodetype == IFILE){
 		return -1; //Is file?!
@@ -1088,11 +1100,14 @@ int writedirent(direntry entry, int inode_number){
 	}
 	if(dir.single_indirect < 0){
 		dir.single_indirect = get_free_block();
-		dir.single_indirect[0] = block;
+		dir.single_indirect = block;
+    indirect *tmp = malloc((sizeof(indirect))* 16);
 		for(i = 1; i<128; i++){
-			dir.single_indirect[i] = -1;
+			tmp[i] = -1;
 		}
+    block_write(block, tmp);
 	}
+
 	for(i = 0; i < 128; i++){
 		if(block_read(dir.single_indirect, buffer) < 0){
 			return -1; //Errorsz
@@ -1106,11 +1121,8 @@ int writedirent(direntry entry, int inode_number){
 		if(block_read(dir.double_indirect, buffer2))
 	}
 	
-	
-	
-	
 }
-
+*/
 
 
 /** Create a directory */
