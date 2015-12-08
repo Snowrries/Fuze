@@ -80,13 +80,7 @@ direntry init_direntry(int n, char *name){
   return *new_dir;
 }
 
-static void sfs_fullpath(char fpath[PATH_MAX], const char *path) {
 
-    strcpy(fpath, SFS_DATA->diskfile);
-    strncat(fpath, path, PATH_MAX);
-    log_msg("sfs_fullpath:  diskfile = \"%s\", path = \"%s\", fpath = \"%s\"\n",
-    SFS_DATA->diskfile, path, fpath);
-}
 
 //First thing in our memory/disk
 //Superblock keeps track of our filesystem info
@@ -359,13 +353,15 @@ void *sfs_init(struct fuse_conn_info *conn)
       }
 
       //Initialize root
-      int uid = getuid();    
+      uid_t uid = getuid(); 
+      gid_t gid = getgid();   
       inode *root = malloc(sizeof(inode));
       root->inode_number = 0;
       root->size = sizeof(direntry)*2;
       root->uid = uid;
+      root->gid = gid;
       root->inodetype = IDIR;
-      root->mode = 0700;
+      root->mode = 0777;
       root->single_indirect = -1;
       root->double_indirect = -1;
       //Initialize root dirent
@@ -381,12 +377,9 @@ void *sfs_init(struct fuse_conn_info *conn)
       memset(temp,0,BLOCK_SIZE);
       memcpy(temp,tmp_dirent,sizeof(tmp_dirent));
       int info = block_write(blk, &temp);
-      log_msg("\n %d", info);
       
       memset(in_table,0,sizeof(in_table));
       in_table[0] = *root;
-      log_msg("\n %d", sizeof(in_table));
-      log_msg("\n %d", sizeof(in_table[0]));
       char* buf = malloc(BLOCK_SIZE);
       memset(buf, 0, BLOCK_SIZE);
       k=0;
@@ -495,12 +488,10 @@ int sfs_getattr(const char *path, struct stat *statbuf)
     inode cur_inode;
     log_msg("\nsfs_getattr(path=\"%s\", statbuf=0x%08x)\n",
     path, statbuf);
-    char fpath[PATH_MAX];
-    sfs_fullpath(fpath,path);
 
     memset(statbuf, 0, sizeof(struct stat));
-    inode_num = get_inode(fpath);
-    if(inode_num >0){
+    inode_num = get_inode(path);
+    if(inode_num >-1){
       cur_inode = in_table[inode_num];
       log_msg("\n Logging inode stat");
       //statbuf->st_dev = 9001; //How are we supposed to know this?
@@ -508,7 +499,7 @@ int sfs_getattr(const char *path, struct stat *statbuf)
       statbuf->st_mode = cur_inode.mode; 
       //statbuf->st_nlink = cur_inode->links; //Hardlinks not implemented
       statbuf->st_uid = cur_inode.uid;
-      //statbuf->st_gid = cur_inode->gid;
+      statbuf->st_gid = cur_inode.gid;
       //statbuf->st_rdev = 0; //What's a special file device id o_o
       statbuf->st_size = cur_inode.size; //Remember to define all these in inode struct later.
       statbuf->st_blocks = cur_inode.num_blocks; //Remember to define me
@@ -520,59 +511,7 @@ int sfs_getattr(const char *path, struct stat *statbuf)
         log_msg("\n Inode not found");
     }
     log_stat(statbuf);
-   /* int inode_num;
-    struct inode cur_inode;
-    if((inode_num = get_inode(path) < 0){
-    	log_msg("Could not find path!");
-    	return -1;
-    }
-    inode cur_inode;
-    int n = get_inode(path);
-    if (n < 0){
-    	return n;
-    }
-    cur_inode = in_table[n];
-    
-    //statbuf->st_dev = 9001; //How are we supposed to know this?
-   // statbuf->st_ino = (ino_t)inode_num;
-    statbuf->st_mode = cur_inode.mode; 
-    //statbuf->st_nlink = cur_inode->links; //Hardlinks not implemented
-    statbuf->st_uid = cur_inode.uid;
-    //statbuf->st_gid = cur_inode->gid;
-    //statbuf->st_rdev = 0; //What's a special file device id o_o
-    statbuf->st_size = cur_inode.size; //Remember to define all these in inode struct later.
-    statbuf->st_blocks = cur_inode.num_blocks; //Remember to define me
-    statbuf->st_atime = 0;
-    statbuf->st_mtime = 0;
-    statbuf->st_ctime = 0; 
-    
-//    struct stat {
-//    dev_t     st_dev;     /* ID of device containing file */
-//    ino_t     st_ino;     /* inode number */
-//    mode_t    st_mode;    /* protection */
-//    nlink_t   st_nlink;   /* number of hard links */
-//    uid_t     st_uid;     /* user ID of owner */
-//    gid_t     st_gid;     /* group ID of owner */
-//    dev_t     st_rdev;    /* device ID (if special file) */
-//    off_t     st_size;    /* total size, in bytes */
-//    blksize_t st_blksize; /* blocksize for file system I/O */
-//    blkcnt_t  st_blocks;  /* number of 512B blocks allocated */
-//    time_t    st_atime;   /* time of last access */
-//    time_t    st_mtime;   /* time of last modification */
-//    time_t    st_ctime;   /* time of last status change */
-//};
-  
-    //Skeleton Code
-    /*
-    strcpy(fpath, SFS_DATA->diskfile);
-    strncat(fpath, path, PATH_MAX);
-
-    retstat = stat(fpath,statbuf);
-    if (retstat != 0){
-       log_msg("ERROR %s",strerror(errno));
-    }*/
-    
-
+   
     return retstat;
     
 }
@@ -620,10 +559,8 @@ int sfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
     int block;
     inode *new_node;
     const char* buf = calloc(1,BLOCK_SIZE);
-    char fpath[PATH_MAX];
-    sfs_fullpath(fpath,path);
     if(inode_num > 0){
-      return sfs_open(fpath, fi);
+      return sfs_open(path, fi);
     }
     else if(inode_num == -1){
     	inode_num = get_free_inode();
@@ -639,8 +576,8 @@ int sfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
     	new_node->direct[0] = block;
     	in_table[inode_num] = *new_node;
       char* tmp = malloc(PATH_MAX);
-    	find_parent(fpath,tmp);
-      
+    	find_parent(path,tmp);
+      //Get parent directory
     	block_write(block, buf);
     	
       return inode_num;
@@ -993,12 +930,11 @@ int sfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offse
 	inode curnode;
 	int running = 0 ;
 	int done = 0;
-  fpath[PATH_MAX];
-  sfs_fullpath(fpath,path);
-	int inode_num = get_inode(fpath);
+	int inode_num = get_inode(path);
 	curnode = in_table[inode_num];
 	dirinbuf = sizeof(buf)/sizeof(direntry);
 	direntry buffer[4];
+  direntry* buf2 = buf;
 	char indirbuf[512];
 	char indirbuf2[512];
 	
@@ -1007,7 +943,7 @@ int sfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offse
 			return 0; //loaded the entirety of dirent structs into buffer yay
 		}
 		for (j = 0 ; j < 4 ; j++){
-			*(buf + running*32) = buffer[j];
+			*(buf2 + running*32) = buffer[j];
 			running++;
 			if (running > dirinbuf){
 				done = 1;
@@ -1021,7 +957,7 @@ int sfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offse
 			return 0; //loaded the entirety of dirent structs into buffer yay
 		}
 		for (j = 0 ; j < 4 ; j++){
-			*(buf + running*32) = buffer[j];
+			*(buf2 + running*32) = buffer[j];
 			running++;
 			if (running > dirinbuf){
 				done = 1;
@@ -1033,15 +969,15 @@ int sfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offse
 		return 0; //loaded the entirety of dirent structs into buffer yay
 	}
 	for (i = 0; i < 128 ;i++){
-		if(block_read(indirbuf2[i], indirbuf1)){
+		if(block_read(indirbuf2[i], indirbuf)){
 			return 0; //loaded the entirety of dirent structs into buffer yay
 		}
 		for(k = 0; k < 128; k++){
-			if(block_read(indirbuf1[k], buffer)){
+			if(block_read(indirbuf[k], buffer)){
 				return 0; //loaded the entirety of dirent structs into buffer yay
 			}
 			for (j = 0 ; j < 4 ; j++){
-				*(buf + running*32) = buffer[j];
+				*(buf2 + running*32) = buffer[j];
 				running++;
 				if (running > dirinbuf){
 					done = 1;
