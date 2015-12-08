@@ -62,7 +62,6 @@ We will have two levels of indirection, allowing for up to ~2gb files to be stor
  #define BLOCK_SIZE 512
  #define MAX_SIZE 64 //64 is arbitrary
  #define MAX_BLOCKS 128
- #define InodeStartAddr 1 //Need to Set where the inodes start in our data blocks
  #define MAX_NODES_PER_BLOCK ((BLOCK_SIZE)/sizeof(inode)) 
  #define MAX_NODES 64
  #define INODE_TLB_BLKS (MAX_NODES/MAX_NODES_PER_BLOCK)
@@ -229,7 +228,7 @@ int get_inode(const char *path){//Returns the inode_number of an inode
 		offset = offset+num+1;
 		cur_inode_number = result;
 	}
-
+  log_msg("\n Buffering");
 	return cur_inode_number;
 }
 //Finds the leftmost segment of a valid pathname, and returns it terminated by a null byte, without the ending /
@@ -361,7 +360,7 @@ void *sfs_init(struct fuse_conn_info *conn)
       root->uid = uid;
       root->gid = gid;
       root->inodetype = IDIR;
-      root->mode = 0755;
+      root->mode = S_IFDIR | 0755;
       root->single_indirect = -1;
       root->double_indirect = -1;
       //Initialize root dirent
@@ -714,14 +713,15 @@ int sfs_release(const char *path, struct fuse_file_info *fi)
  *
  * Changed in version 2.2
  */
+
 int sfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
 {
     int retstat = 0;
     log_msg("\nsfs_read(path=\"%s\", buf=0x%08x, size=%d, offset=%lld, fi=0x%08x)\n", path, buf, size, offset, fi);
     
     
-    
-    	int bufferblocks;
+  /*  
+  int bufferblocks;
 	int i;
 	int j;
 	int k;
@@ -730,7 +730,7 @@ int sfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse
 	int done = 0;
 	int start = 0;
 	int inode_num;
-	if(inode_num = open(path, fi) < 0){
+	if(inode_num = sfs_open(path, fi) < 0){
 		return -1;//Error
 	}
 	curnode = in_table[inode_num];
@@ -743,13 +743,13 @@ int sfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse
 		start = offset-bufferblocks*BLOCK_SIZE;
 		i = -1;
 	}
-	else if(bufferblocks < (DIRECT_SIZE + 128){
+	else if(bufferblocks < (DIRECT_SIZE + 128)){
 		bufferblocks = bufferblocks - DIRECT_SIZE;
 		start = offset - bufferblocks*BLOCK_SIZE - DIRECT_SIZE * BLOCK_SIZE;
 		i = -2;
 	}
 	
-	else if(bufferblocks < (DIRECT_SIZE + 128 + 16384){
+	else if(bufferblocks < (DIRECT_SIZE + 128 + 16384)){
 		bufferblocks = bufferblocks - DIRECT_SIZE - 128;
 		start = offset - (bufferblocks*BLOCK_SIZE) - (DIRECT_SIZE * BLOCK_SIZE) - (128 * BLOCK_SIZE);
 		i = -3;
@@ -762,7 +762,7 @@ int sfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse
 			if (running > size){
 				return 0;
 			}
-			if(strncpy(buf+running, buffer+start, BLOCK_SIZE-start);
+			if(strncpy(buf+running, buffer+start, BLOCK_SIZE-start));
 			start = 0;
 		}
 	}
@@ -805,7 +805,7 @@ int sfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse
 			}
 		}
 	
-    
+    */
     
     
     
@@ -963,7 +963,7 @@ int sfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offse
 	int inode_num = get_inode(path);
 	curnode = in_table[inode_num];
 	dirinbuf = sizeof(buf)/sizeof(direntry);
-	direntry buffer[4];
+	direntry buffer[16];
   direntry* buf2 = buf;
 	char indirbuf[512];
 	char indirbuf2[512];
@@ -972,7 +972,7 @@ int sfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offse
 		if(block_read(curnode.direct[i], buffer) < 0){
 			return 0; //loaded the entirety of dirent structs into buffer yay
 		}
-		for (j = 0 ; j < 4 ; j++){
+		for (j = 0 ; j < 16 ; j++){
 			*(buf2 + running*32) = buffer[j];
 			running++;
 			if (running > dirinbuf){
@@ -986,7 +986,7 @@ int sfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offse
 		if(block_read(indirbuf[i], buffer)){
 			return 0; //loaded the entirety of dirent structs into buffer yay
 		}
-		for (j = 0 ; j < 4 ; j++){
+		for (j = 0 ; j < 16 ; j++){
 			*(buf2 + running*32) = buffer[j];
 			running++;
 			if (running > dirinbuf){
@@ -1006,7 +1006,7 @@ int sfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offse
 			if(block_read(indirbuf[k], buffer)){
 				return 0; //loaded the entirety of dirent structs into buffer yay
 			}
-			for (j = 0 ; j < 4 ; j++){
+			for (j = 0 ; j < 16 ; j++){
 				*(buf2 + running*32) = buffer[j];
 				running++;
 				if (running > dirinbuf){
