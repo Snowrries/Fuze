@@ -66,7 +66,7 @@ We will have two levels of indirection, allowing for up to ~2gb files to be stor
  #define MAX_NODES_PER_BLOCK ((BLOCK_SIZE)/sizeof(inode)) 
  #define MAX_NODES 64
  #define INODE_TLB_BLKS (MAX_NODES/MAX_NODES_PER_BLOCK)
- #define PATH_MAX 128
+ 
 //More of a bytemap.
 char data_bitmap[MAX_BLOCKS]; 
 char inode_bitmap[MAX_SIZE];
