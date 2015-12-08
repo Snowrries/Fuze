@@ -619,16 +619,61 @@ int sfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 /** Remove a file */
 int sfs_unlink(const char *path)
 {
-    int retstat = 0;
-    log_msg("sfs_unlink(path=\"%s\")\n", path);
-    retstat = unlink(path);
-    if (retstat == -1){
-      //Log this error 
-      return errno;
-    }
-    
-    return retstat;
+	int j = 0;
+	log_msg("sfs_unlink(path=\"%s\")\n", path);
+	int inode_number;
+	int check;
+	char buffer[PATH_MAX];
+	int i = 0;
+	char buf[512];
+	char buf2[512];
+	inode_number = get_inode(path);
+	int indir = in_table[inode_number].single_indirect;
+	int indir2 = in_table[inode_number].double_indirect;
+	
+	if(find_parent(path, buffer)<1){
+		log_msg("Could not find parent while unlinking");
+		return -1; 
+	} 
+	inode_bitmap[inode_number] = 0;
+	while(check = direct[i] != -1){
+		data_bitmap[check] = 0;
+		i++;
+		if(i > 21){
+			break;
+		}
+	}
+	//Check indirects
+	if(check != -1){
+		block_read(indir, buf);
+		for(i = 0; i < 128; i++){
+			if(check = buf[i] != -1){
+				data_bitmap[check] = 0;
+			}
+			else{
+				break;
+			}
+		}
+		data_bitmap[indir] = 0;
+	}
+	if(check != -1){
+		block_read(indir2, buf);
+		for(i = 0; i < 128; i++){
+			block_read(buf[i], buf2);
+			for(j = 0; j < 128; j++ ){
+				if(check = buf2[j] != -1){
+					data_bitmap[check] = 0;
+				}
+				else{
+					break;
+				}
+			}
+			data_bitmap[buf[i]] = 0;
+		}
+		data_bitmap[indir] = 0;
+	}
 }
+
 
 /** File open operation
  *
