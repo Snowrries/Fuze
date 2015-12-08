@@ -92,18 +92,16 @@ direntry init_direntry(int n, char *name){
 //If any link directly to the requested path fragment, it will return 0. 
 //If it doesn't exist and will not be in the indirect nodes, it will return -1. 
 //If it doesn't exist but might be in an indirect, it will return 1.
-int get_inode_fragment(char* frag, int direct){
+int get_inode_fragment(char* frag, int blocknum){
 	direntry dirArray[16]; //512 bytes / block and 32 bytes/direntry. 16 direntries in a dirArray
 	int result = 0;
 	char buffer[PATH_MAX];
-	if(result = block_read(direct, dirArray) <= 0){
-		
+	int j;
+	memset(buffer,0,PATH_MAX);
+	memcpy(buffer, frag, sizeof(frag));
+	if(result = block_read(blocknum, dirArray) <= 0){
 		return -1; //Couldn't read?
 	}
-
-  memset(buffer, 0, PATH_MAX);
-  memcpy(buffer,frag,sizeof(frag));
-	int j;
 	for(j = 0; j < 16; j++){
 		if(!strncmp(dirArray[j].name, buffer, 27)){
 			return dirArray[j].inode_number;
@@ -178,7 +176,7 @@ int get_inode(char *path){//Returns the inode_number of an inode
 			for(i = 0; i<128; i++){
 				//buf is an int array of length 128. 
 				
-				if(result = get_inode_fragment(buf[i], buffer) == -1){
+				if(result = get_inode_fragment(buffer, buf[i]) == -1){
 					if(num < running){
 						//There is more path, but we can't find the directory... That's an error.
 						log_msg("Invalid path! Path: %s", path);
@@ -198,7 +196,7 @@ int get_inode(char *path){//Returns the inode_number of an inode
 			for(i = 0; i<128; i++){
 				block_read(buf[i], buf2);
 				for (j = 0; j < 128; j++){
-					if(result = get_inode_fragment(buf2[j], buffer ) == -1){
+					if(result = get_inode_fragment(buffer, buf2[j]) == -1){
 						if(num < running){
 							//There is more path, but we can't find the directory... That's an error.
 							log_msg("Invalid path! Path: %s", path);
