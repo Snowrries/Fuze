@@ -506,9 +506,9 @@ int sfs_getattr(const char *path, struct stat *statbuf)
       //statbuf->st_rdev = 0; //What's a special file device id o_o
       statbuf->st_size = cur_inode.size; //Remember to define all these in inode struct later.
       statbuf->st_blocks = 0; //Remember to define me
-      statbuf->st_atime = 0;
-      statbuf->st_mtime = 0;
-      statbuf->st_ctime = 0; 
+      statbuf->st_atime = cur_inode.access_time.tv_sec;
+      statbuf->st_ctime = cur_inode.create_time.tv_sec;
+      statbuf->st_mtime = cur_inode.modify_time.tv_sec; 
     }
     else{
         log_msg("\n Inode not found");
@@ -1370,7 +1370,7 @@ int sfs_releasedir(const char *path, struct fuse_file_info *fi)
 struct fuse_operations sfs_oper = {
   .init = sfs_init,
   .destroy = sfs_destroy,
-
+  .utimens = sfs_utimens,
   .getattr = sfs_getattr,
   .create = sfs_create,
   .unlink = sfs_unlink,
@@ -1385,7 +1385,6 @@ struct fuse_operations sfs_oper = {
   .opendir = sfs_opendir,
   .readdir = sfs_readdir,
   .releasedir = sfs_releasedir,
-  .utimens = sfs_utimens
 };
 
 void sfs_usage()
