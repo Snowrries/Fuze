@@ -491,9 +491,35 @@ void sfs_destroy(void *userdata)
 int sfs_getattr(const char *path, struct stat *statbuf)
 {
     int retstat = 0;
+    int inode_num;
+    inode cur_inode;
     log_msg("\nsfs_getattr(path=\"%s\", statbuf=0x%08x)\n",
     path, statbuf);
     char fpath[PATH_MAX];
+    sfs_fullpath(fpath,path);
+
+    memset(statbuf, 0 sizeof(struct stat));
+    inode_num = get_inode(fpath);
+    if(inode_num >0){
+      cur_inode = in_table[inode_num];
+      log_msg("\n Logging inode stat");
+      //statbuf->st_dev = 9001; //How are we supposed to know this?
+      // statbuf->st_ino = (ino_t)inode_num;
+      statbuf->st_mode = cur_inode.mode; 
+      //statbuf->st_nlink = cur_inode->links; //Hardlinks not implemented
+      statbuf->st_uid = cur_inode.uid;
+      //statbuf->st_gid = cur_inode->gid;
+      //statbuf->st_rdev = 0; //What's a special file device id o_o
+      statbuf->st_size = cur_inode.size; //Remember to define all these in inode struct later.
+      statbuf->st_blocks = cur_inode.num_blocks; //Remember to define me
+      statbuf->st_atime = 0;
+      statbuf->st_mtime = 0;
+      statbuf->st_ctime = 0; 
+    }
+    else{
+        log_msg("\n Inode not found");
+    }
+    log_stat(statbuf);
    /* int inode_num;
     struct inode cur_inode;
     if((inode_num = get_inode(path) < 0){
@@ -536,16 +562,15 @@ int sfs_getattr(const char *path, struct stat *statbuf)
 //    time_t    st_ctime;   /* time of last status change */
 //};
   
-
     //Skeleton Code
-    
+    /*
     strcpy(fpath, SFS_DATA->diskfile);
     strncat(fpath, path, PATH_MAX);
 
     retstat = stat(fpath,statbuf);
     if (retstat != 0){
        log_msg("ERROR %s",strerror(errno));
-    }
+    }*/
     
 
     return retstat;
