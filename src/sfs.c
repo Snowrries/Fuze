@@ -257,7 +257,7 @@ int parse_path(char *path, char* buffer){
 //Copies the path of the parent to buf.
 //returns -1 on error.
 //returns 0 on success.
-int find_parent(char *path, char* buf){
+int find_parent(const char *path, char* buf){
 	
 	char buffer[PATH_MAX];
 	int pathlen = strnlen(path, PATH_MAX);
@@ -500,7 +500,6 @@ int sfs_getattr(const char *path, struct stat *statbuf)
     //statbuf->st_gid = cur_inode->gid;
     //statbuf->st_rdev = 0; //What's a special file device id o_o
     statbuf->st_size = cur_inode.size; //Remember to define all these in inode struct later.
-    statbuf->st_blksize = cur_inode.BLOCK_SIZE;
     statbuf->st_blocks = cur_inode.num_blocks; //Remember to define me
     //statbuf->st_atime = 0;
     //statbuf->st_mtime = 0;
@@ -524,6 +523,7 @@ int sfs_getattr(const char *path, struct stat *statbuf)
     
 
     //Skeleton Code
+    /*
     strcpy(fpath, SFS_DATA->rootdir);
     strncat(fpath, path, PATH_MAX);
 
@@ -531,6 +531,7 @@ int sfs_getattr(const char *path, struct stat *statbuf)
     if (retstat != 0){
        log_msg("ERROR %s",strerror(errno));
     }
+    */
     //log_sta
 
     return retstat;
@@ -572,51 +573,47 @@ int sfs_getattr(const char *path, struct stat *statbuf)
  * Introduced in version 2.5
  */
 
- /*
+ 
 int sfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 {
 	log_msg("\nsfs_create(path=\"%s\", mode=0%03o, fi=0x%08x)\n",path, mode, fi);
     int inode_num;
     int block;
-    inode new_node = get_inode(path);
-    const void* buf = calloc(BLOCK_SIZE);
+    inode *new_node;
+    const char* buf = calloc(1,BLOCK_SIZE);
 
-    if(new_node > 0){
+    if(inode_num > 0){
       return sfs_open(path, fi);
     }
-    else if(new_node == -1){
+    else if(inode_num == -1){
     	inode_num = get_free_inode();
     	block = get_free_block();/*Find the first unset block*/
-    	/*
+    	new_node = malloc(sizeof(inode));
       data_bitmap[block] = 1;
     	inode_bitmap[inode_num] = 1;
-    	new_node.inode_number = inode_num;
-    	new_node.mode = mode;
-    	new_node.size = 0;
-    	new_node.num_blocks = 0;
-    	new_node.inodetype = IFILE;
-    	new_node.direct[0] = block;
-    	in_table[inode_num] = new_node;
+    	new_node->inode_number = inode_num;
+    	new_node->mode = mode;
+    	new_node->size = 0;
+    	new_node->num_blocks = 0;
+    	new_node->inodetype = IFILE;
+    	new_node->direct[0] = block;
+    	in_table[inode_num] = *new_node;
     	
     	block_write(block, buf);
     	
+      return inode_num;
       //Get new node location from bitmap/array
       //Populate inode info on the inode table
       //Write the inode to correct location on disk
       //Update bitmap and write to disk
     }
     else{
-    	return new_node; //Error code as defined in get_inode 
-    }
-    /*
-    Tony: Use path to lookup where the file is located in our virtual disk.
-    If it cannot be found, we have write a new block to the virtual disk.
-    Then we open by returning the data block to a pointer given by the user; in this case
-    fi->fh (file handler)
-    */
-    /*
-    return retstat;
-}*/
+    	return inode_num; //Error code as defined in get_inode 
+    } 
+
+    return inode_num;
+    
+}
 
 /** Remove a file */
 int sfs_unlink(const char *path)
@@ -886,9 +883,10 @@ int sfs_mkdir(const char *path, mode_t mode)
 	if(add_to_dirtree(path, entry)<0){
 		return -1;
 	}
-	//int retstat = 0;
-	//log_msg("\nsfs_mkdir(path=\"%s\", mode=0%3o)\n",path, mode);
   */
+	int retstat = 0;
+	log_msg("\nsfs_mkdir(path=\"%s\", mode=0%3o)\n",path, mode);
+  
 	return retstat;
 }
 
