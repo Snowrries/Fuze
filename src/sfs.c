@@ -1063,50 +1063,52 @@ int get_parent_path( char* path, char* name, char* buffer){
 }
 //Given a directory,
 //Find the next free block to write to.
-//Returns the ... that it writes to.
+//Returns the blocknum that it writes to.
+//Set the block num in the directory pointed to by the inode.
 //-1 if there is no free block.
-//Nevermind. This is broken. I'll fix it after I shower. Brb.
 int writedirent(direntry entry, int inode_number){
-	int i = 0;
-	int j = 0;
 	log_msg("writedirent");
-	char buffer[PATH_MAX];
-	char buf[512];
-	char buf2[512];
-  	inode dir = in_table[inode_number];
-	int indir = dir.single_indirect;
-	int indir2 = dir.double_indirect;
-	
+	int block;
+	int i; 
+	int j;
+	inode dir;
+	char buffer[BLOCK_SIZE];
+	char buffer2[BLOCK_SIZE];
+	block = get_free_block();
+	block_write(block, entry);
+	dir = in_table[inode_number];
+	if(dir.inodetype == IFILE){
+		return -1; //Is file?!
+	}
 	for(i = 0; i < DIRECT_SIZE; i++){
-		if(block_read(dir.direct[i]) == 0){
-			block_write(dir.direct[i], entry);
-			return dir.direct[i];
+		if(dir.direct[i] < 0){
+			dir.direct[i] = block;
+			return block;
 		}
 	}
-	if(block_read(indir, buf) < 0){
-		return -1; //error
+	if(dir.single_indirect < 0){
+		dir.single_indirect = get_free_block();
+		dir.single_indirect[0] = block;
+		for(i = 1; i<128; i++){
+			dir.single_indirect[i] = -1;
+		}
 	}
 	for(i = 0; i < 128; i++){
-		if(block_read(buf[i]) == 0){
-			block_write(buf[i], entry);
-			return buf[i];
+		if(block_read(dir.single_indirect, buffer) < 0){
+			return -1; //Errorsz
+		}
+		if(buffer[i] < 0){
+			buffer[i] = block;
+			return block;
 		}
 	}
-	if(block_read(indir2, buf2) < 0){
-		return -1; //error
+	for(i = 0; i < 128; i++){
+		if(block_read(dir.double_indirect, buffer2))
 	}
-	for(i = 0; i <128; i++){
-		if(block_read(buf2[i], buf) < 0){
-			return -1;
-		}
-		for(j = 0; j <128; j++){
-			if(block_read(buf[j]) == 0){
-				block_write(buf[j], entry);
-				return buf[j];
-			}
-		}
-	}
-	return -1;
+	
+	
+	
+	
 }
 
 
