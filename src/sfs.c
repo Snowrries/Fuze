@@ -893,25 +893,146 @@ int sfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse
 int sfs_write(const char *path, const char *buf, size_t size, off_t offset,
 	     struct fuse_file_info *fi)
 {
-    int retstat = 0;
-    log_msg("\nsfs_write(path=\"%s\", buf=0x%08x, size=%d, offset=%lld, fi=0x%08x)\n",
-	    path, buf, size, offset, fi);
-    retstat = pwrite(fi->fh, buf, size, offset);
-    if (retstat == -1){
-      retstat = -errno;
-    }
-    /*
-    if(size <= BLOCK_SIZE){
-      //get inode 
-      struct inode *node = //get_inode(path);
-      node->size = size;
-    }
-*/
-    /*
-    Tony: Similar to read.
-    */
-    
-    return retstat;
+	//Assume *buf is big enough to hold size 
+    	int retstat = 0;
+    	log_msg("\nsfs_read(path=\"%s\", buf=0x%08x, size=%d, offset=%lld, fi=0x%08x)\n", path, buf, size, offset, fi);
+
+  	int bufferblocks;
+  	int doublebufferblx;
+	int i;
+	int j;
+	int k;
+	inode curnode;
+	int running = 0;
+	int done = 0;
+	int start = 0;
+	int inode_num;
+	int temp;
+	if(inode_num = sfs_open(path, fi) < 0){
+		return -1;//Error
+	}
+	curnode = in_table[inode_num];
+	bufferblocks = sizeof(buf)/BLOCK_SIZE;
+	char buffer[sizeof(buf)];
+	char indirbuf[128];
+	char indirbuf2[128];
+	//Here, we find the block that our offset is in; that is, our start block.
+	//Then we find the offset from the beginning of the block that we have found,
+	//And then we set i = -1, -2, or -3 based on where we started our block.
+	if(bufferblocks < DIRECT_SIZE){
+		start = offset-bufferblocks*BLOCK_SIZE;
+		i = -1;
+	}
+	else if(bufferblocks < (DIRECT_SIZE + 128)){
+		bufferblocks = bufferblocks - DIRECT_SIZE;
+		start = offset - bufferblocks*BLOCK_SIZE - DIRECT_SIZE * BLOCK_SIZE;
+		i = -2;
+	}
+	
+	else if(bufferblocks < (DIRECT_SIZE + 128 + 16384)){
+		doublebufferblx = bufferblocks/BLOCK_SIZE;
+		bufferblocks = bufferblocks - DIRECT_SIZE - 128 - (doublebufferblx * 128);
+		start = offset - (doublebufferblx*BLOCK_SIZE*BLOCKSIZE) - (bufferblocks*BLOCK_SIZE) - (DIRECT_SIZE * BLOCK_SIZE) - (128 * BLOCK_SIZE);
+		i = -3;
+	}
+	if(i > -2){ // Direct. 
+		for (i = bufferblocks; i < DIRECT_SIZE; i++){
+			//Starting at the bufferblocks block
+			//Complicated logic here, in my opinion. Read carefully. 
+			//Maybe draw it out.
+			//Shake it off.
+			if(block_read(curnode.direct[i], buffer) < 0){
+				return -1;
+			}
+			if(temp = (size - running - start) < 512 ){
+				strncpy(buffer+start, buf+running, temp);
+				if(block_write(curnode.direct[i], buffer) < 0){
+					return -1;
+				}
+				return size;
+			}
+			else
+			{//Write a block normally.
+				strncpy(buffer+start, buf+running, BLOCK_SIZE-start);
+				if(block_write(curnode.direct[i], buffer) < 0){
+					return -1;
+				}
+				running = running+(BLOCK_SIZE-start);
+				if(running == size){
+					return size;
+				}
+			}
+			start = 0;
+		}
+		bufferblocks = 0;
+	}
+	if(i > -3){//Guaranteed to need to read more, otherwise we'd return.
+		if(block_read(curnode.single_indirect, indirbuf)<0){
+			return -1; //couldn't read!
+		}
+		for (i = bufferblocks; i < 128 ;i++){
+			if(block_read(indirbuf[i], buffer) < 0){
+				return -1;
+			}
+			if(temp = (size - running - start) < 512 ){
+				strncpy(buffer+start, buf+running, temp);
+				if(block_write(curnode.direct[i], buffer) < 0){
+					return -1;
+				}
+				return size;
+			}
+			else
+			{//Write a block normally.
+				strncpy(buffer+start, buf+running, BLOCK_SIZE-start);
+				if(block_write(curnode.direct[i], buffer) < 0){
+					return -1;
+				}
+				running = running+(BLOCK_SIZE-start);
+				if(running == size){
+					return size;
+				}
+			}
+			start = 0;
+		}
+		bufferblocks = 0;
+	}
+	if(i > -4){//Guaranteed to need to read more, otherwise we'd return.
+		if(block_read(curnode.double_indirect, indirbuf2)<0){
+			return -1; //couldn't read!
+		}
+		for (j = doublebufferblx; j < 128; j++){
+			
+			if(block_read(indirbuf2[j], indirbuf)<0){
+				return -1; //couldn't read!
+			}
+		
+			for (i = bufferblocks; i < 128 ;i++){
+				if(block_read(indirbuf[i], buffer) < 0){
+					return -1;
+				}
+				if(temp = (size - running - start) < 512 ){
+					strncpy(buffer+start, buf+running, temp);
+					if(block_write(curnode.direct[i], buffer) < 0){
+						return -1;
+					}
+					return size;
+				}
+				else
+				{//Write a block normally.
+					strncpy(buffer+start, buf+running, BLOCK_SIZE-start);
+					if(block_write(curnode.direct[i], buffer) < 0){
+						return -1;
+					}
+					running = running+(BLOCK_SIZE-start);
+					if(running == size){
+						return size;
+					}
+				}
+				start = 0;
+			}
+		}	
+	}
+	return -1; //How'd we get here?
 }
 //Returns length of file name
 //Places the file name into the buffer;
