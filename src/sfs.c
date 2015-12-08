@@ -977,10 +977,85 @@ int sfs_opendir(const char *path, struct fuse_file_info *fi)
  * '1'.
  *
  * Introduced in version 2.3
- */
+ */ //Returns -1 if there is more to load into buf.
+ //Returns 0 if everything is loaded
 int sfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset,
 	       struct fuse_file_info *fi)
 { 
+	//Given a path, read the directory entries.
+	//Path is a directory. 
+	//Ignore filler, ignore offset, ignore fi. 
+	//Put the entirety of the directory entries into buf.
+	int dirinbuf;
+	int i;
+	int j;
+	int k;
+	inode curnode;
+	int running = 0 ;
+	int done = 0;
+	int inode_num = get_inode(path);
+	curnode = in_table[inode_num];
+	dirinbuf = sizeof(buf)/sizeof(direntry);
+	direntry buffer[4];
+	char indirbuf[512];
+	char indirbuf2[512];
+	
+	for (i = 0; i < DIRECT_SIZE;i++){
+		if(block_read(curnode.direct[i], buffer) < 0){
+			return 0; //loaded the entirety of dirent structs into buffer yay
+		}
+		for (j = 0 ; j < 4 ; j++){
+			*(buf + running*32) = buffer[j];
+			running++;
+			if (running > dirinbuf){
+				done = 1;
+				return -1; // Still have more to load.
+			}
+		}
+	}
+	block_read(curnode.single_indirect, indirbuf);
+	for (i = 0; i < 128 ;i++){
+		if(block_read(indirbuf[i], buffer)){
+			return 0; //loaded the entirety of dirent structs into buffer yay
+		}
+		for (j = 0 ; j < 4 ; j++){
+			*(buf + running*32) = buffer[j];
+			running++;
+			if (running > dirinbuf){
+				done = 1;
+				return -1;// Still have more to load.
+			}
+		}
+	}
+	if(block_read(curnode.double_indirect, indirbuf2)){
+		return 0; //loaded the entirety of dirent structs into buffer yay
+	}
+	for (i = 0; i < 128 ;i++){
+		if(block_read(indirbuf2[i], indirbuf1)){
+			return 0; //loaded the entirety of dirent structs into buffer yay
+		}
+		for(k = 0; k < 128; k++){
+			if(block_read(indirbuf1[k], buffer)){
+				return 0; //loaded the entirety of dirent structs into buffer yay
+			}
+			for (j = 0 ; j < 4 ; j++){
+				*(buf + running*32) = buffer[j];
+				running++;
+				if (running > dirinbuf){
+					done = 1;
+					return -1;// Still have more to load.
+				}
+			}
+		}
+	}
+	
+	
+	
+	
+	
+	
+	
+	
     /*
     DIR *somedir;
     struct dirent *entry;
