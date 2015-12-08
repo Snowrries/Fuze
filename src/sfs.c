@@ -66,7 +66,7 @@ We will have two levels of indirection, allowing for up to ~2gb files to be stor
  #define MAX_NODES_PER_BLOCK ((BLOCK_SIZE)/sizeof(inode)) 
  #define MAX_NODES 64
  #define INODE_TLB_BLKS (MAX_NODES/MAX_NODES_PER_BLOCK)
- #define MAX_PATH 32
+ #define PATH_MAX 128
 //More of a bytemap.
 char data_bitmap[MAX_BLOCKS]; 
 char inode_bitmap[MAX_SIZE];
@@ -78,6 +78,14 @@ direntry init_direntry(int n, char *name){
   strncpy(new_dir->name,name,sizeof(new_dir->name));
   new_dir->inode_number = n;
   return *new_dir;
+}
+
+static void sfs_fullpath(char fpath[PATH_MAX], const char *path) {
+
+    strcpy(fpath, SFS_DATA->diskfile);
+    strncat(fpath, path, PATH_MAX);
+    log_msg("sfs_fullpath:  diskfile = \"%s\", path = \"%s\", fpath = \"%s\"\n",
+    SFS_DATA->diskfile, path, fpath);
 }
 
 //First thing in our memory/disk
@@ -119,7 +127,7 @@ int get_inode_fragment(char* frag, int direct){
 int get_inode(const char *path){//Returns the inode_number of an inode
 //Assume path is a valid, null terminated path name.
 	int num;
-	int cur_inode_number = 2; //Start at root!
+	int cur_inode_number = 0; //Start at root!
 	int running = 0;
 	inode curnode;
 	int pathlen = strnlen(path, PATH_MAX);
@@ -227,6 +235,7 @@ int get_inode(const char *path){//Returns the inode_number of an inode
 		offset = offset+num+1;
 		cur_inode_number = result;
 	}
+
 	return cur_inode_number;
 }
 //Finds the leftmost segment of a valid pathname, and returns it terminated by a null byte, without the ending /
@@ -491,7 +500,6 @@ int sfs_getattr(const char *path, struct stat *statbuf)
     	log_msg("Could not find path!");
     	return -1;
     }
-    */
     inode cur_inode;
     int n = get_inode(path);
     if (n < 0){
@@ -508,9 +516,9 @@ int sfs_getattr(const char *path, struct stat *statbuf)
     //statbuf->st_rdev = 0; //What's a special file device id o_o
     statbuf->st_size = cur_inode.size; //Remember to define all these in inode struct later.
     statbuf->st_blocks = cur_inode.num_blocks; //Remember to define me
-    //statbuf->st_atime = 0;
-    //statbuf->st_mtime = 0;
-    //statbuf->st_ctime = 0; 
+    statbuf->st_atime = 0;
+    statbuf->st_mtime = 0;
+    statbuf->st_ctime = 0; 
     
 //    struct stat {
 //    dev_t     st_dev;     /* ID of device containing file */
@@ -527,19 +535,18 @@ int sfs_getattr(const char *path, struct stat *statbuf)
 //    time_t    st_mtime;   /* time of last modification */
 //    time_t    st_ctime;   /* time of last status change */
 //};
-    
+  
 
     //Skeleton Code
-    /*
-    strcpy(fpath, SFS_DATA->rootdir);
+    
+    strcpy(fpath, SFS_DATA->diskfile);
     strncat(fpath, path, PATH_MAX);
 
     retstat = stat(fpath,statbuf);
     if (retstat != 0){
        log_msg("ERROR %s",strerror(errno));
     }
-    */
-    //log_sta
+    
 
     return retstat;
     
@@ -756,7 +763,7 @@ int sfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse
     int retstat = 0;
     log_msg("\nsfs_read(path=\"%s\", buf=0x%08x, size=%d, offset=%lld, fi=0x%08x)\n",
 	    path, buf, size, offset, fi);
-
+    /*
     //Skeleton Code
     retstat = pread(fi->fh, buf, size, offset);
     if (retstat == -1){
@@ -859,7 +866,8 @@ int get_file_name(char* path, char* buffer){
 	return c;
 	
 }
-int get_parent_path( char* path, char* name; char* buffer){
+
+int get_parent_path( char* path, char* name, char* buffer){
 	int a;
 	int b;
 	a = strlen(name);
