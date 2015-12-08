@@ -363,6 +363,10 @@ void *sfs_init(struct fuse_conn_info *conn)
       root->mode = S_IFDIR | 0755;
       root->single_indirect = -1;
       root->double_indirect = -1;
+      root->access_time.tv_sec = 0;
+      root->create_time.tv_sec = 0;
+      root->modify_time.tv_sec = 0;
+
       //Initialize root dirent
       char ent1[] = ".";
       char ent2[] = "..";
@@ -502,9 +506,9 @@ int sfs_getattr(const char *path, struct stat *statbuf)
       //statbuf->st_rdev = 0; //What's a special file device id o_o
       statbuf->st_size = cur_inode.size; //Remember to define all these in inode struct later.
       statbuf->st_blocks = 0; //Remember to define me
-      statbuf->st_atime = cur_inode.access_time.tv_sec;
-      statbuf->st_mtime = cur_inode.modify_time.tv_sec;
-      statbuf->st_ctime = cur_inode.create_time.tv_sec; 
+      statbuf->st_atime = 0;
+      statbuf->st_mtime = 0;
+      statbuf->st_ctime = 0; 
     }
     else{
         log_msg("\n Inode not found");
@@ -1340,8 +1344,9 @@ int sfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offse
     int inode_num;
     inode_num = get_inode(path);
     if(inode_num > -1){
+      node_modify = &in_table[inode_num];
       node_modify->access_time = tv[0];
-       node_modify->modify_time = tv[1];
+      node_modify->modify_time = tv[1];
     }
     else{
       return -1;
