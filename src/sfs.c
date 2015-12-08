@@ -237,7 +237,7 @@ int get_inode(const char *path){//Returns the inode_number of an inode
 //Ex: /segment/junk/morejunk/
 //>> return: ""
 //Note that root is an unnamed directory.
-int parse_path(char *path, char* buffer){
+int parse_path(const char *path, char* buffer){
 	char a;
 	int pathlen = strnlen(path, PATH_MAX);
 	char tpath[pathlen+1];
@@ -597,22 +597,24 @@ int sfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 /** Remove a file */
 int sfs_unlink(const char *path)
 {
+  int i = 0;
 	int j = 0;
+  int k = 0;
 	log_msg("sfs_unlink(path=\"%s\")\n", path);
 	int inode_number;
 	int parent_inode_n;
 	int check;
 	char buffer[PATH_MAX];
 	//char buffer2[PATH_MAX];
-	int i = 0;
 	int pardone = 0;
 	direntry buf[512];
-	direntry buf2[512];
+  indirect *buf1;
+	indirect *buf2;
 	inode_number = get_inode(path);
-  inode dir = in_table[inode_number];
+  inode rmnode = in_table[inode_number];
   inode par;
-	int indir = dir.single_indirect;
-	int indir2 = dir.double_indirect;
+	int indir = rmnode.single_indirect;
+	int indir2 = rmnode.double_indirect;
 	if(find_parent(path, buffer)<1){
 		log_msg("Could not find parent while unlinking");
 		return -1; 
@@ -620,43 +622,55 @@ int sfs_unlink(const char *path)
 	parent_inode_n = get_inode(buffer);// buffer contains path of parent. 
 	par = in_table[parent_inode_n];//par is the parent inode. This is a directory inode. 
 	//Remove the dirent of the child from parent directory
-  direntry *tmp;
 	for(i = 0; i < DIRECT_SIZE; i++){
-      block_read(par.direct[i],tmp);
+      block_read(par.direct[i],buf);
     for(j =0; j < 16; j++){
-		  if(tmp[j].inode_number == inode_number){
-			 tmp[j].inode_number = -1;
+		  if(buf[j].inode_number == inode_number){
+			 buf[j].inode_number = -1;
 			 pardone = 1;
 			 break;
 		  }
     }
 	}
 	if(pardone == 0){
-		if(block_read(par.single_indirect, buf) < 0){
+		if(block_read(par.single_indirect, buf1) < 0){ //Read in indirect
 			return -1; //error
 		}
 		for(i = 0; i < 128; i++){
-			if(buf[i].inode_number == inode_number){
-				par.direct[i] = -1;
-				pardone = 1;
-				break;
-			}
-		}
+      if(block_read(buf1->blocks[i], buf) >= 0){ //Read in Direntry Block
+       for(k = 0; j<16; j++){
+			   if(buf[i].inode_number == inode_number){ //Get Direntry inode number
+				  buf[i].inode_number  = -1;
+          *(buf[i].name) = '\0';
+				  pardone = 1;
+				  break;
+			   }
+        }
+		  }
+      else{
+        return -1;
+      }
+    }
 	}
 	if(pardone == 0){
-		if(block_read(par.double_indirect,buf)<0){
+		if(block_read(par.double_indirect,buf2)<0){ //Read in indirect pointers
 			return -1; //error
 		}
 		for(i = 0; i < 128; i++){
-			if(block_read(buf.blocks[i],buf2)<0){
+			if(block_read(buf2->blocks[i],buf1)<0){ //Read in indirects
 				return -1; //error
 			}	
-			for(j = 0; j < 128; j++){
-				if(buf2[j].inode_number == inode_number){
-					par.direct[i] = -1;
-					pardone = 1;
+			for(j = 0; j < 128; j++){ 
+        if(block_read(buf1->blocks[j],buf)<0){ //Read in Direntry Block
+        return -1; //error
+       }
+        for(k = 0; k<16; k++){ //Get inode number
+				if(buf[k].inode_number == inode_number){
+					buf[i].inode_number  = -1;
+         *(buf[i].name) = '\0';
 					break;
-				}
+				  }
+        }
 			}
 			if(pardone == 1)break;
 		}
@@ -668,43 +682,57 @@ int sfs_unlink(const char *path)
 	
 	
 	//Remove the data blocks allocated to the file from the global data bitmap, thereby 'freeing' them for use.
-	inode_bitmap[inode_number] = 0;.
-	while(check = dir.direct[i] != -.1){
+	inode_bitmap[inode_number] = 0;
+	while(i < DIRECT_SIZE){
+    check = rmnode.direct[i];
+    if(check != -1){
 		data_bitmap[check] = 0;
+    }
+    else
+      break; 
 		i++;
-		if(i > 21){
-			break;
-		}
 	}
 	//Check indirects
-	if(check != -1){
-		block_read(indir, buf);
+  if(check != -1){
+		if(block_read(indir, buf1) > 0){
 		for(i = 0; i < 128; i++){
-			if(check = buf[i] != -1){
+      check = buf1->blocks[i];
+			if(check != -1){
 				data_bitmap[check] = 0;
 			}
 			else{
 				break;
 			}
-		}
 		data_bitmap[indir] = 0;
-	}
+	 }
+  }
+  else{
+    //Error Reading
+    return -1;
+  }
+}
 	if(check != -1){
-		block_read(indir2, buf);
+		if(block_read(indir2, buf2) < 0){
+      //Error reading
+      return -1;
+    }
 		for(i = 0; i < 128; i++){
-			block_read(buf[i], buf2);
+			block_read(buf2->blocks[i], buf1);
 			for(j = 0; j < 128; j++ ){
-				if(check = buf2[j] != -1){
-					data_bitmap[check] = 0;
-				}
+			 check = buf1->blocks[i];
+       if(check != -1){
+          data_bitmap[check] = 0;
+       }
 				else{
 					break;
 				}
 			}
-			data_bitmap[buf[i]] = 0;
+			data_bitmap[buf2->blocks[i]] = 0;
 		}
-		data_bitmap[indir] = 0;
+		data_bitmap[indir2] = 0;
 	}
+
+  return 0; //Sucess
 }
 
 
@@ -1051,7 +1079,7 @@ int get_file_name(const char* path, char* buffer){
 	int a = 0;
 	int b = strnlen(path, PATH_MAX);
 	int c = 0;
-	char* patho = path;
+	const char* patho = path;
 	while( a < b ){
 		a = a + c + 1;
 		c = parse_path(&patho[a], buffer);
@@ -1076,7 +1104,7 @@ int get_parent_path(const char* path, char* name, char* buffer){
 //Returns the blocknum that it writes to.
 //Set the block num in the directory pointed to by the inode.
 //-1 if there is no free block.
-/*
+
 int writedirent(direntry entry, int inode_number){
 	log_msg("writedirent");
 	int block;
@@ -1085,9 +1113,8 @@ int writedirent(direntry entry, int inode_number){
 	inode dir;
 	char buffer[BLOCK_SIZE];
 	char buffer2[BLOCK_SIZE];
-  //NO
 	block = get_free_block();
-	//block_write(block, &entry);
+	block_write(block, &entry);
 	dir = in_table[inode_number];
 	if(dir.inodetype == IFILE){
 		return -1; //Is file?!
@@ -1103,7 +1130,7 @@ int writedirent(direntry entry, int inode_number){
 		dir.single_indirect = block;
     indirect *tmp = malloc((sizeof(indirect))* 16);
 		for(i = 1; i<128; i++){
-			tmp[i] = -1;
+			tmp->blocks[i] = -1;
 		}
     block_write(block, tmp);
 	}
@@ -1118,11 +1145,12 @@ int writedirent(direntry entry, int inode_number){
 		}
 	}
 	for(i = 0; i < 128; i++){
-		if(block_read(dir.double_indirect, buffer2))
+		if(block_read(dir.double_indirect, buffer2) <0){
+
 	}
 	
+  }
 }
-*/
 
 
 /** Create a directory */
@@ -1141,7 +1169,7 @@ int sfs_mkdir(const char *path, mode_t mode)
 	if(entry.inode_number = get_free_inode() <0){
 		return -1; //No free inodes.
 	}
-	buffer = get_parent(path);
+	find_parent(path,buffer);
 	parent_in = get_inode(buffer);
 	
 	
