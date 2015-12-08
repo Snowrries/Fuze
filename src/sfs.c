@@ -501,10 +501,10 @@ int sfs_getattr(const char *path, struct stat *statbuf)
       statbuf->st_gid = cur_inode.gid;
       //statbuf->st_rdev = 0; //What's a special file device id o_o
       statbuf->st_size = cur_inode.size; //Remember to define all these in inode struct later.
-      statbuf->st_blocks = cur_inode.num_blocks; //Remember to define me
-      statbuf->st_atime = 0;
-      statbuf->st_mtime = 0;
-      statbuf->st_ctime = 0; 
+      statbuf->st_blocks = 0; //Remember to define me
+      statbuf->st_atime = cur_inode.access_time.tv_sec;
+      statbuf->st_mtime = cur_inode.modify_time.tv_sec;
+      statbuf->st_ctime = cur_inode.create_time.tv_sec; 
     }
     else{
         log_msg("\n Inode not found");
@@ -555,11 +555,12 @@ int sfs_getattr(const char *path, struct stat *statbuf)
 int sfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 {
     log_msg("\nsfs_create(path=\"%s\", mode=0%03o, fi=0x%08x)\n",path, mode, fi);
-    int inode_num;
+    int inode_num = get_inode(path);
     int block;
-    inode * new_node;
+    inode *new_node;
     const char* buf = calloc(1,BLOCK_SIZE);
     if(inode_num > 0){
+  
       return sfs_open(path, fi);
     }
     else if(inode_num == -1){
@@ -571,11 +572,10 @@ int sfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
     	new_node->inode_number = inode_num;
     	new_node->mode = mode;
     	new_node->size = 0;
-    	new_node->num_blocks = 0;
     	new_node->inodetype = IFILE;
     	new_node->direct[0] = block;
     	in_table[inode_num] = *new_node;
-        char* tmp = malloc(PATH_MAX);
+      char* tmp = malloc(PATH_MAX);
     	find_parent(path,tmp);
         //Get parent directory
     	block_write(block, buf);
@@ -1234,6 +1234,8 @@ int sfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offse
 	//Path is a directory. 
 	//Ignore filler, ignore offset, ignore fi. 
 	//Put the entirety of the directory entries into buf.
+  log_msg("\nsfs_readdir(path=\"%s\", buf=0x%08x, filler=0x%08x, offset=%lld, fi=0x%08x)\n",
+      path, buf, filler, offset, fi);
 	int dirinbuf;
 	int i;
 	int j;
@@ -1321,6 +1323,33 @@ int sfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offse
     */
 }
 
+
+  /**
+   * Change the access and modification times of a file with
+   * nanosecond resolution
+   *
+   * This supersedes the old utime() interface.  New applications
+   * should use this.
+   *
+   * See the utimensat(2) man page for details.
+   *
+   * Introduced in version 2.6
+   */
+  int sfs_utimens (const char * path, const struct timespec tv[2]){
+    inode * node_modify;
+    int inode_num;
+    inode_num = get_inode(path);
+    if(inode_num > -1){
+      node_modify->access_time = tv[0];
+       node_modify->modify_time = tv[1];
+    }
+    else{
+      return -1;
+    }
+    return 0;
+  }
+
+
 /** Release directory
  *
  * Introduced in version 2.3
@@ -1350,7 +1379,8 @@ struct fuse_operations sfs_oper = {
 
   .opendir = sfs_opendir,
   .readdir = sfs_readdir,
-  .releasedir = sfs_releasedir
+  .releasedir = sfs_releasedir,
+  .utimens = sfs_utimens
 };
 
 void sfs_usage()
