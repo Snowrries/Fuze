@@ -123,8 +123,9 @@ int get_inode(const char *path){//Returns the inode_number of an inode
 	int running = 0;
 	inode curnode;
 	int pathlen = strnlen(path, PATH_MAX);
-	char patho[pathlen];
+	char patho[pathlen+1];
   	strncpy(patho, path, pathlen);
+  	patho[pathlen] = '/';
 	int found = 0 ;
 	char buffer[PATH_MAX];
 	int result;
@@ -136,6 +137,9 @@ int get_inode(const char *path){//Returns the inode_number of an inode
 	char buf2[BLOCK_SIZE];
 	
 	while((num = num + parse_path(&patho[offset], buffer) + 1 ) <= running){
+		//Fuse truncates all ending slashes for some reason. Thus, we pad the given path with a trailing slash.
+		//Then, we now have a normalized representation of a path, where every segment has a trailing /. 
+		
 	//Path always ends in a /. At the last bit of the path, it'll return -1.
 	//That is, we found 'something/', or just '/'. if we find 'something', that's considered nothing.
 	//We end when we've parsed all the path.
