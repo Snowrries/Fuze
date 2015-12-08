@@ -498,7 +498,7 @@ int sfs_getattr(const char *path, struct stat *statbuf)
     char fpath[PATH_MAX];
     sfs_fullpath(fpath,path);
 
-    memset(statbuf, 0 sizeof(struct stat));
+    memset(statbuf, 0, sizeof(struct stat));
     inode_num = get_inode(fpath);
     if(inode_num >0){
       cur_inode = in_table[inode_num];
