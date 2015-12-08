@@ -603,7 +603,7 @@ int sfs_unlink(const char *path)
 	char buffer[PATH_MAX];
 	//char buffer2[PATH_MAX];
 	int i = 0;
-	pardone = 0;
+	int pardone = 0;
 	char buf[512];
 	char buf2[512];
 	inode_number = get_inode(path);
@@ -1061,26 +1061,76 @@ int get_parent_path( char* path, char* name, char* buffer){
 	return 0;
 	
 }
+//Given a directory,
+//Find the next free block to write to.
+//Returns the ... that it writes to.
+//-1 if there is no free block.
+//Nevermind. This is broken. I'll fix it after I shower. Brb.
+int writedirent(direntry entry, int inode_number){
+	int i = 0;
+	int j = 0;
+	log_msg("writedirent");
+	char buffer[PATH_MAX];
+	char buf[512];
+	char buf2[512];
+  	inode dir = in_table[inode_number];
+	int indir = dir.single_indirect;
+	int indir2 = dir.double_indirect;
+	
+	for(i = 0; i < DIRECT_SIZE; i++){
+		if(block_read(dir.direct[i]) == 0){
+			block_write(dir.direct[i], entry);
+			return dir.direct[i];
+		}
+	}
+	if(block_read(indir, buf) < 0){
+		return -1; //error
+	}
+	for(i = 0; i < 128; i++){
+		if(block_read(buf[i]) == 0){
+			block_write(buf[i], entry);
+			return buf[i];
+		}
+	}
+	if(block_read(indir2, buf2) < 0){
+		return -1; //error
+	}
+	for(i = 0; i <128; i++){
+		if(block_read(buf2[i], buf) < 0){
+			return -1;
+		}
+		for(j = 0; j <128; j++){
+			if(block_read(buf[j]) == 0){
+				block_write(buf[j], entry);
+				return buf[j];
+			}
+		}
+	}
+	return -1;
+}
+
+
 
 /** Create a directory */
 int sfs_mkdir(const char *path, mode_t mode)
-{ /*
-	int a;
-	a = get_inode(spb,path); //spb = superblock
-	if( a>0 && spb.global_table[a].inodetype == IDIR){
-		return -1; //Error! 
-	}
-	struct dirent entry;
-	get_file_name(path,entry.d_name);
-	entry.d_type = DT_UNKNOWN;
-	if(add_to_dirtree(path, entry)<0){
-		return -1;
-	}
-  */
-	int retstat = 0;
+{
 	log_msg("\nsfs_mkdir(path=\"%s\", mode=0%3o)\n",path, mode);
-  
-	return retstat;
+	int a;
+	int parent_in;
+	direntry entry;
+	char buffer[PATH_MAX];
+	a = get_inode(path);
+	if( a > 0 && in_table[a].inodetype == IDIR){
+		return -1; //Error! It already exists!
+	}
+	get_file_name(path,entry.name);
+	if(entry.inode_number = get_free_inode() <0){
+		return -1; //No free inodes.
+	}
+	buffer = get_parent(path);
+	parent_in = get_inode(buffer);
+	
+	
 }
 
 
