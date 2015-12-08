@@ -361,7 +361,7 @@ void *sfs_init(struct fuse_conn_info *conn)
       root->uid = uid;
       root->gid = gid;
       root->inodetype = IDIR;
-      root->mode = 0777;
+      root->mode = 0755;
       root->single_indirect = -1;
       root->double_indirect = -1;
       //Initialize root dirent
@@ -471,7 +471,7 @@ void *sfs_init(struct fuse_conn_info *conn)
 void sfs_destroy(void *userdata)
 {
     log_msg("\nsfs_destroy(userdata=0x%08x)\n", userdata);
-    //disk_close();
+    disk_close();
 }
 
 /** Get file attributes.
@@ -494,10 +494,10 @@ int sfs_getattr(const char *path, struct stat *statbuf)
     if(inode_num >-1){
       cur_inode = in_table[inode_num];
       log_msg("\n Logging inode stat");
-      //statbuf->st_dev = 9001; //How are we supposed to know this?
-      // statbuf->st_ino = (ino_t)inode_num;
+      statbuf->st_dev = 0; //How are we supposed to know this?
+      statbuf->st_ino = inode_num;
       statbuf->st_mode = cur_inode.mode; 
-      //statbuf->st_nlink = cur_inode->links; //Hardlinks not implemented
+      statbuf->st_nlink = 0; //Hardlinks not implemented
       statbuf->st_uid = cur_inode.uid;
       statbuf->st_gid = cur_inode.gid;
       //statbuf->st_rdev = 0; //What's a special file device id o_o
@@ -509,7 +509,8 @@ int sfs_getattr(const char *path, struct stat *statbuf)
     }
     else{
         log_msg("\n Inode not found");
-    }
+        retstat = -1;
+    }   
     log_stat(statbuf);
    
     return retstat;
