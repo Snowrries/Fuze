@@ -620,9 +620,10 @@ int sfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
     int block;
     inode *new_node;
     const char* buf = calloc(1,BLOCK_SIZE);
-
+    char fpath[PATH_MAX];
+    sfs_fullpath(fpath,path);
     if(inode_num > 0){
-      return sfs_open(path, fi);
+      return sfs_open(fpath, fi);
     }
     else if(inode_num == -1){
     	inode_num = get_free_inode();
@@ -637,7 +638,9 @@ int sfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
     	new_node->inodetype = IFILE;
     	new_node->direct[0] = block;
     	in_table[inode_num] = *new_node;
-    	
+      char* tmp = malloc(PATH_MAX);
+    	find_parent(fpath,tmp);
+      
     	block_write(block, buf);
     	
       return inode_num;
