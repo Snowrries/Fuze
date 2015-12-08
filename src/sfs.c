@@ -494,6 +494,9 @@ int sfs_getattr(const char *path, struct stat *statbuf)
     */
     inode cur_inode;
     int n = get_inode(path);
+    if (n < 0){
+    	return n;
+    }
     cur_inode = in_table[n];
     
     //statbuf->st_dev = 9001; //How are we supposed to know this?
@@ -842,7 +845,7 @@ int sfs_write(const char *path, const char *buf, size_t size, off_t offset,
 }
 //Returns length of file name
 //Places the file name into the buffer;
-/*
+
 int get_file_name(char* path, char* buffer){
 	int a = 0;
 	int b = strnlen(path, PATH_MAX);
@@ -865,12 +868,6 @@ int get_parent_path( char* path, char* name; char* buffer){
 	buffer[b-a] = '\0';
 	return 0;
 	
-}
-int add_to_dirtree(const char* path, struct dirent entry){
-	char* pathy = get_parent_path(path);
-	get_inode(path);
-	
-	return 0;
 }
 
 /** Create a directory */
