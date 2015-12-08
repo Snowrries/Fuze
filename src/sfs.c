@@ -95,15 +95,13 @@ direntry init_direntry(int n, char *name){
 int get_inode_fragment(char* frag, int direct){
 	direntry dirArray[16]; //512 bytes / block and 32 bytes/direntry. 16 direntries in a dirArray
 	int result = 0;
+	int j;
 	char buffer[PATH_MAX];
 	if(result = block_read(direct, dirArray) <= 0){
-		
 		return -1; //Couldn't read?
 	}
-
-  memset(buffer, 0, PATH_MAX);
-  memcpy(buffer,frag,sizeof(frag));
-	int j;
+	memset(buffer, 0, PATH_MAX);
+	memcpy(buffer,frag,sizeof(frag));
 	for(j = 0; j < 16; j++){
 		if(!strncmp(dirArray[j].name, buffer, 27)){
 			return dirArray[j].inode_number;
@@ -126,7 +124,7 @@ int get_inode(const char *path){//Returns the inode_number of an inode
 	inode curnode;
 	int pathlen = strnlen(path, PATH_MAX);
 	char patho[pathlen];
-  strncpy(patho, path, pathlen);
+  	strncpy(patho, path, pathlen);
 	int found = 0 ;
 	char buffer[PATH_MAX];
 	int result;
@@ -134,8 +132,8 @@ int get_inode(const char *path){//Returns the inode_number of an inode
 	int i;
 	int j;
 	int block_num;
-	const void buf[BLOCK_SIZE];
-	const void buf2[BLOCK_SIZE];
+	char buf[BLOCK_SIZE];
+	char buf2[BLOCK_SIZE];
 	
 	while((num = num + parse_path(&patho[offset], buffer) + 1 ) <= running){
 	//Path always ends in a /. At the last bit of the path, it'll return -1.
@@ -178,7 +176,7 @@ int get_inode(const char *path){//Returns the inode_number of an inode
 			for(i = 0; i<128; i++){
 				//buf is an int array of length 128. 
 				
-				if(result = get_inode_fragment(buf[i], buffer) == -1){
+				if(result = get_inode_fragment(buffer,buf[i]) == -1){
 					if(num < running){
 						//There is more path, but we can't find the directory... That's an error.
 						log_msg("Invalid path! Path: %s", path);
@@ -198,7 +196,7 @@ int get_inode(const char *path){//Returns the inode_number of an inode
 			for(i = 0; i<128; i++){
 				block_read(buf[i], buf2);
 				for (j = 0; j < 128; j++){
-					if(result = get_inode_fragment(buf2[j], buffer ) == -1){
+					if(result = get_inode_fragment(buffer, buf2[j]) == -1){
 						if(num < running){
 							//There is more path, but we can't find the directory... That's an error.
 							log_msg("Invalid path! Path: %s", path);
