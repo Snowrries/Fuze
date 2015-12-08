@@ -268,7 +268,7 @@ int find_parent(const char *path, char* buf){
 	char buffer[PATH_MAX];
 	int pathlen = strnlen(path, PATH_MAX);
 	char tpath[pathlen+1];
-  strncpy(tpath, path, pathlen);
+  	strncpy(tpath, path, pathlen);
 	tpath[pathlen] = '\0';
 	int offset = 0;
 	int offparent = 0;
@@ -554,10 +554,9 @@ int sfs_getattr(const char *path, struct stat *statbuf)
  
 int sfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 {
-	log_msg("\nsfs_create(path=\"%s\", mode=0%03o, fi=0x%08x)\n",path, mode, fi);
+    log_msg("\nsfs_create(path=\"%s\", mode=0%03o, fi=0x%08x)\n",path, mode, fi);
     int inode_num;
     int block;
-    inode *new_node;
     const char* buf = calloc(1,BLOCK_SIZE);
     if(inode_num > 0){
       return sfs_open(path, fi);
@@ -565,8 +564,7 @@ int sfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
     else if(inode_num == -1){
     	inode_num = get_free_inode();
     	block = get_free_block();/*Find the first unset block*/
-    	new_node = malloc(sizeof(inode));
-      data_bitmap[block] = 1;
+        data_bitmap[block] = 1;
     	inode_bitmap[inode_num] = 1;
     	new_node->inode_number = inode_num;
     	new_node->mode = mode;
@@ -575,9 +573,9 @@ int sfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
     	new_node->inodetype = IFILE;
     	new_node->direct[0] = block;
     	in_table[inode_num] = *new_node;
-      char* tmp = malloc(PATH_MAX);
+        char* tmp = malloc(PATH_MAX);
     	find_parent(path,tmp);
-      //Get parent directory
+        //Get parent directory
     	block_write(block, buf);
     	
       return inode_num;
@@ -600,22 +598,72 @@ int sfs_unlink(const char *path)
 	int j = 0;
 	log_msg("sfs_unlink(path=\"%s\")\n", path);
 	int inode_number;
+	int parent_inode_n;
 	int check;
 	char buffer[PATH_MAX];
+	//char buffer2[PATH_MAX];
 	int i = 0;
+	pardone = 0;
 	char buf[512];
 	char buf2[512];
 	inode_number = get_inode(path);
-  inode dir = in_table[inode_number];
+  	inode dir = in_table[inode_number];
+  	direntry par;
 	int indir = dir.single_indirect;
 	int indir2 = dir.double_indirect;
-	
 	if(find_parent(path, buffer)<1){
 		log_msg("Could not find parent while unlinking");
 		return -1; 
 	} 
-	inode_bitmap[inode_number] = 0;
-	while(check = dir.direct[i] != -1){
+	parent_inode_n = get_inode(buffer);// buffer contains path of parent. 
+	par = in_table[parent_inode];//par is the parent inode. This is a directory. 
+	//Remove the dirent of the child from parent directory
+	for(i = 0; i < DIRECT_SIZE; i++){
+		if(par.direct[i].inode_number == inode_number){
+			par.direct[i] = -1;
+			pardone = 1;
+			break;
+		}
+	}
+	if(pardone == 0){
+		if(block_read(par.single_indirect, buf) < 0){
+			return -1; //error
+		}
+		for(i = 0; i < 128; i++){
+			if(buf[i].inode_number == inode_number){
+				par.direct[i] = -1;
+				pardone = 1;
+				break;
+			}
+		}
+	}
+	if(pardone == 0){
+		if(block_read(par.double_indirect,buf)<0){
+			return -1; //error
+		}
+		for(i = 0; i < 128; i++){
+			if(block_read(buf[i],buf2)<0){
+				return -1; //error
+			}	
+			for(j = 0; j < 128; j++){
+				if(buf2[j].inode_number == inode_number){
+					par.direct[i] = -1;
+					pardone = 1;
+					break;
+				}
+			}
+			if(pardone == 1)break;
+		}
+	}
+	if(pardone == 0){
+		//...We went through all the indirectness and the file doesn't exist.
+		return -1;
+	}
+	
+	
+	//Remove the data blocks allocated to the file from the global data bitmap, thereby 'freeing' them for use.
+	inode_bitmap[inode_number] = 0;.
+	while(check = dir.direct[i] != -.1){
 		data_bitmap[check] = 0;
 		i++;
 		if(i > 21){
@@ -716,12 +764,12 @@ int sfs_release(const char *path, struct fuse_file_info *fi)
 
 int sfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
 {
-    int retstat = 0;
-    log_msg("\nsfs_read(path=\"%s\", buf=0x%08x, size=%d, offset=%lld, fi=0x%08x)\n", path, buf, size, offset, fi);
-    
-    
-  /*  
-  int bufferblocks;
+	//Assume *buf is big enough to hold size 
+    	int retstat = 0;
+    	log_msg("\nsfs_read(path=\"%s\", buf=0x%08x, size=%d, offset=%lld, fi=0x%08x)\n", path, buf, size, offset, fi);
+
+  	int bufferblocks;
+  	int doublebufferblx;
 	int i;
 	int j;
 	int k;
@@ -730,15 +778,18 @@ int sfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse
 	int done = 0;
 	int start = 0;
 	int inode_num;
+	int temp;
 	if(inode_num = sfs_open(path, fi) < 0){
 		return -1;//Error
 	}
 	curnode = in_table[inode_num];
 	bufferblocks = sizeof(buf)/BLOCK_SIZE;
 	char buffer[sizeof(buf)];
-	char indirbuf[512];
-	char indirbuf2[512];
-	
+	char indirbuf[128];
+	char indirbuf2[128];
+	//Here, we find the block that our offset is in; that is, our start block.
+	//Then we find the offset from the beginning of the block that we have found,
+	//And then we set i = -1, -2, or -3 based on where we started our block.
 	if(bufferblocks < DIRECT_SIZE){
 		start = offset-bufferblocks*BLOCK_SIZE;
 		i = -1;
@@ -750,68 +801,85 @@ int sfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse
 	}
 	
 	else if(bufferblocks < (DIRECT_SIZE + 128 + 16384)){
-		bufferblocks = bufferblocks - DIRECT_SIZE - 128;
-		start = offset - (bufferblocks*BLOCK_SIZE) - (DIRECT_SIZE * BLOCK_SIZE) - (128 * BLOCK_SIZE);
+		doublebufferblx = bufferblocks/BLOCK_SIZE;
+		bufferblocks = bufferblocks - DIRECT_SIZE - 128 - (doublebufferblx * 128);
+		start = offset - (doublebufferblx*BLOCK_SIZE*BLOCKSIZE) - (bufferblocks*BLOCK_SIZE) - (DIRECT_SIZE * BLOCK_SIZE) - (128 * BLOCK_SIZE);
 		i = -3;
 	}
-	if(i == -1){
+	if(i > -2){ // Direct. 
 		for (i = bufferblocks; i < DIRECT_SIZE; i++){
+			//Starting at the bufferblocks block
+			//Complicated logic here, in my opinion. Read carefully. 
+			//Maybe draw it out.
+			//Shake it off.
 			if(block_read(curnode.direct[i], buffer) < 0){
-				return running;
+				return -1;
 			}
-			if (running > size){
-				return 0;
+			if(temp = (size - running - start) < 512 ){
+				strncpy(buf+running, buffer+start , temp);
+				return size;
 			}
-			if(strncpy(buf+running, buffer+start, BLOCK_SIZE-start));
+			//Read a block normally.
+			strncpy(buf+running, buffer+start, BLOCK_SIZE-start);
+			running = running+(BLOCK_SIZE-start);
+			if(running == size){
+				return size;
+			}
 			start = 0;
 		}
+		bufferblocks = 0;
 	}
-	
-		block_read(curnode.single_indirect, indirbuf);
-		for (i = 0; i < 128 ;i++){
-			if(block_read(indirbuf[i], buffer)){
-				return 0; //loaded the entirety of dirent structs into buffer yay
-			}
-			for (j = 0 ; j < 4 ; j++){
-				*(buf2 + running*32) = buffer[j];
-				running++;
-				if (running > dirinbuf){
-					done = 1;
-					return -1;// Still have more to load.
-				}
-			}
+	if(i > -3){//Guaranteed to need to read more, otherwise we'd return.
+		if(block_read(curnode.single_indirect, indirbuf)<0){
+			return -1; //couldn't read!
 		}
-	
-	
-		if(block_read(curnode.double_indirect, indirbuf2)){
-			return 0; //loaded the entirety of dirent structs into buffer yay
-		}
-		for (i = 0; i < 128 ;i++){
-			if(block_read(indirbuf2[i], indirbuf)){
-				return 0; //loaded the entirety of dirent structs into buffer yay
+		for (i = bufferblocks; i < 128 ;i++){
+			if(block_read(indirbuf[i], buffer) < 0){
+				return -1;
 			}
-			for(k = 0; k < 128; k++){
-				if(block_read(indirbuf[k], buffer)){
-					return 0; //loaded the entirety of dirent structs into buffer yay
-				}
-				for (j = 0 ; j < 4 ; j++){
-					*(buf2 + running*32) = buffer[j];
-					running++;
-					if (running > dirinbuf){
-						done = 1;
-						return -1;// Still have more to load.
-					}
-				}
+			if(temp = (size - running - start) < 512 ){
+				strncpy(buf+running, buffer+start , temp);
+				return size;
 			}
+			//Read a block normally.
+			strncpy(buf+running, buffer+start, BLOCK_SIZE-start);
+			running = running+(BLOCK_SIZE-start);
+			if(running == size){
+				return size;
+			}
+			start = 0;
 		}
-	
-    */
-    
-    
-    
-    
-    
-    return retstat;
+		bufferblocks = 0;
+	}
+	if(i > -4){//Guaranteed to need to read more, otherwise we'd return.
+		if(block_read(curnode.double_indirect, indirbuf2)<0){
+			return -1; //couldn't read!
+		}
+		for (j = doublebufferblx; j < 128; j++){
+			
+			if(block_read(indirbuf2[j], indirbuf)<0){
+				return -1; //couldn't read!
+			}
+		
+			for (i = bufferblocks; i < 128 ;i++){
+				if(block_read(indirbuf[i], buffer) < 0){
+					return -1;
+				}
+				if(temp = (size - running - start) < 512 ){
+					strncpy(buf+running, buffer+start , temp);
+					return size;
+				}
+				//Read a block normally.
+				strncpy(buf+running, buffer+start, BLOCK_SIZE-start);
+				running = running+(BLOCK_SIZE-start);
+				if(running == size){
+					return size;
+.				}
+				start = 0;
+			}
+		}	
+	}
+	return -1; //How'd we get here?
 }
 
 /** Write data to an open file
@@ -964,7 +1032,7 @@ int sfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offse
 	curnode = in_table[inode_num];
 	dirinbuf = sizeof(buf)/sizeof(direntry);
 	direntry buffer[16];
-  direntry* buf2 = buf;
+	 direntry* buf2 = buf;
 	char indirbuf[512];
 	char indirbuf2[512];
 	
@@ -1016,13 +1084,6 @@ int sfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offse
 			}
 		}
 	}
-	
-	
-	
-	
-	
-	
-	
 	
     /*
     DIR *somedir;
