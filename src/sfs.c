@@ -65,7 +65,7 @@ We will have two levels of indirection, allowing for up to ~2gb files to be stor
  #define InodeStartAddr 1 //Need to Set where the inodes start in our data blocks
  #define MAX_NODES_PER_BLOCK ((BLOCK_SIZE)/sizeof(inode)) 
  #define MAX_NODES 64
- #define INODE_TLB_BLKS (MAX_NODES/NODES_PER_BLK)
+ #define INODE_TLB_BLKS (MAX_NODES/MAX_NODES_PER_BLOCK)
  #define MAX_PATH 32
 //More of a bytemap.
 char data_bitmap[MAX_BLOCKS]; 
@@ -118,7 +118,7 @@ int get_inode_fragment(char* frag, int direct){
 //Returns -2 if the pathname is invalid.
 //Returns -4 if the directory is full, and path does not exist.
 
-int get_inode(char *path){//Returns the inode_number of an inode
+int get_inode(const char *path){//Returns the inode_number of an inode
 //Assume path is a valid, null terminated path name.
 	int num;
 	int cur_inode_number = 2; //Start at root!
@@ -263,7 +263,8 @@ int find_parent(char *path, char* buf){
 	
 	char buffer[PATH_MAX];
 	int pathlen = strnlen(path, PATH_MAX);
-	char tpath[pathlen+1] = strncpy(tpath, path, pathlen);
+	char tpath[pathlen+1];
+  strncpy(tpath, path, pathlen);
 	tpath[pathlen] = '\0';
 	int offset = 0;
 	int offparent = 0;
@@ -453,7 +454,6 @@ void *sfs_init(struct fuse_conn_info *conn)
     Have to set block sizes, buffer sizes, max write/reads, inodes
     */
     return SFS_DATA;
-    l
 
 }
 
@@ -490,20 +490,20 @@ int sfs_getattr(const char *path, struct stat *statbuf)
     	return -1;
     }
     */
-    inode *cur_inode;
+    inode cur_inode;
     int n = get_inode(path);
     cur_inode = in_table[n];
     
     //statbuf->st_dev = 9001; //How are we supposed to know this?
    // statbuf->st_ino = (ino_t)inode_num;
-    statbuf->mode_t = cur_inode->mode; 
-    statbuf->st_nlink = cur_inode->links; //Hardlinks not implemented
-    statbuf->uid_t = cur_inode->uid;
-    statbuf->gid_t = cur_inode->gid;
+    statbuf->st_mode = cur_inode.mode; 
+    //statbuf->st_nlink = cur_inode->links; //Hardlinks not implemented
+    statbuf->st_uid = cur_inode.uid;
+    //statbuf->st_gid = cur_inode->gid;
     //statbuf->st_rdev = 0; //What's a special file device id o_o
-    statbuf->st_size = cur_inode->size; //Remember to define all these in inode struct later.
-    statbuf->st_blksize = cur_inode->BLOCK_SIZE;
-    statbuf->st_blocks = cur_inode->num_blocks; //Remember to define me
+    statbuf->st_size = cur_inode.size; //Remember to define all these in inode struct later.
+    statbuf->st_blksize = cur_inode.BLOCK_SIZE;
+    statbuf->st_blocks = cur_inode.num_blocks; //Remember to define me
     //statbuf->st_atime = 0;
     //statbuf->st_mtime = 0;
     //statbuf->st_ctime = 0; 
@@ -574,7 +574,7 @@ int sfs_getattr(const char *path, struct stat *statbuf)
  * Introduced in version 2.5
  */
 
- 
+ /*
 int sfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 {
 	log_msg("\nsfs_create(path=\"%s\", mode=0%03o, fi=0x%08x)\n",path, mode, fi);
@@ -589,7 +589,8 @@ int sfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
     else if(new_node == -1){
     	inode_num = get_free_inode();
     	block = get_free_block();/*Find the first unset block*/
-    	data_bitmap[block] = 1;
+    	/*
+      data_bitmap[block] = 1;
     	inode_bitmap[inode_num] = 1;
     	new_node.inode_number = inode_num;
     	new_node.mode = mode;
@@ -615,9 +616,9 @@ int sfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
     Then we open by returning the data block to a pointer given by the user; in this case
     fi->fh (file handler)
     */
-    
+    /*
     return retstat;
-}
+}*/
 
 /** Remove a file */
 int sfs_unlink(const char *path)
@@ -631,15 +632,16 @@ int sfs_unlink(const char *path)
 	char buf[512];
 	char buf2[512];
 	inode_number = get_inode(path);
-	int indir = in_table[inode_number].single_indirect;
-	int indir2 = in_table[inode_number].double_indirect;
+  inode dir = in_table[inode_number];
+	int indir = dir.single_indirect;
+	int indir2 = dir.double_indirect;
 	
 	if(find_parent(path, buffer)<1){
 		log_msg("Could not find parent while unlinking");
 		return -1; 
 	} 
 	inode_bitmap[inode_number] = 0;
-	while(check = direct[i] != -1){
+	while(check = dir.direct[i] != -1){
 		data_bitmap[check] = 0;
 		i++;
 		if(i > 21){
@@ -762,6 +764,7 @@ int sfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse
     virtual disk file.
     Flesh code:
     */
+    /*
     struct inode cur;
     char* buf = buffer;
     int inode_num = get_inode(path);
@@ -803,7 +806,7 @@ int sfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse
 	    leftover = curset - BLOCK_SIZE;
 	    off++;
     }
-
+  */
     return retstat;
 }
 
@@ -825,12 +828,13 @@ int sfs_write(const char *path, const char *buf, size_t size, off_t offset,
     if (retstat == -1){
       retstat = -errno;
     }
+    /*
     if(size <= BLOCK_SIZE){
       //get inode 
       struct inode *node = //get_inode(path);
       node->size = size;
     }
-
+*/
     /*
     Tony: Similar to read.
     */
@@ -839,6 +843,7 @@ int sfs_write(const char *path, const char *buf, size_t size, off_t offset,
 }
 //Returns length of file name
 //Places the file name into the buffer;
+/*
 int get_file_name(char* path, char* buffer){
 	int a = 0;
 	int b = strnlen(path, PATH_MAX);
@@ -871,7 +876,7 @@ int add_to_dirtree(const char* path, struct dirent entry){
 
 /** Create a directory */
 int sfs_mkdir(const char *path, mode_t mode)
-{
+{ /*
 	int a;
 	a = get_inode(spb,path); //spb = superblock
 	if( a>0 && spb.global_table[a].inodetype == IDIR){
@@ -883,8 +888,9 @@ int sfs_mkdir(const char *path, mode_t mode)
 	if(add_to_dirtree(path, entry)<0){
 		return -1;
 	}
-	int retstat = 0;
+	//int retstat = 0;
 	//log_msg("\nsfs_mkdir(path=\"%s\", mode=0%3o)\n",path, mode);
+  */
 	return retstat;
 }
 
@@ -941,7 +947,8 @@ int sfs_opendir(const char *path, struct fuse_file_info *fi)
  */
 int sfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset,
 	       struct fuse_file_info *fi)
-{
+{ 
+    /*
     DIR *somedir;
     struct dirent *entry;
 //    struct stat statarg;
@@ -961,6 +968,7 @@ int sfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offse
     }
     closedir(somedir);
     return 0;
+    */
 }
 
 /** Release directory
