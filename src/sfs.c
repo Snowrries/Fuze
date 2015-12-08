@@ -100,6 +100,9 @@ int get_inode_fragment(char* frag, int direct){
 		
 		return -1; //Couldn't read?
 	}
+
+  memset(buffer, 0, PATH_MAX);
+  memcpy(buffer,frag,sizeof(frag));
 	int j;
 	for(j = 0; j < 16; j++){
 		if(!strncmp(dirArray[j].name, buffer, 27)){
