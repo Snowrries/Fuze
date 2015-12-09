@@ -1251,40 +1251,62 @@ int sfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offse
 	int j;
 	int k;
 	inode curnode;
-	int running = 0 ;
+	off_t off = offset;
 	int done = 0;
 	int inode_num = get_inode(path);
 	curnode = in_table[inode_num];
 	dirinbuf = sizeof(buf)/sizeof(direntry);
 	direntry buffer[16];
-	 direntry* buf2 = buf;
+	direntry singbuf;
 	char indirbuf[512];
 	char indirbuf2[512];
+	struct stat *stbuf;
+	
+
+	//void *buf, const char *name,const struct stat *stbuf, off_t off)
+	
+	
 	
 	for (i = 0; i < DIRECT_SIZE;i++){
 		if(block_read(curnode.direct[i], buffer) < 0){
 			return 0; //loaded the entirety of dirent structs into buffer yay
 		}
 		for (j = 0 ; j < 16 ; j++){
-			*(buf2 + running*32) = buffer[j];
-			running++;
-			if (running > dirinbuf){
-				done = 1;
+			singbuf = buffer[j];
+			memset(stbuf, 0 , sizeof(struct stat));
+			stbuf->st_ino = singbuf.inode_num;
+			stbuf->st_mode = in_table[stbuf->st_ino].mode;
+			//Set off
+			if(filler(buf, buffer[j].name, stbuf, off)){
+				return 0;
+			}
+			
+			off = off + sizeof(direntry);
+			if (off > sizeof(buf)){
+				done = 1;//Filler should return 1 in this case though.
 				return -1; // Still have more to load.
 			}
 		}
 	}
 	block_read(curnode.single_indirect, indirbuf);
 	for (i = 0; i < 128 ;i++){
-		if(block_read(indirbuf[i], buffer)){
+		if(block_read(curnode.direct[i], buffer) < 0){
 			return 0; //loaded the entirety of dirent structs into buffer yay
 		}
 		for (j = 0 ; j < 16 ; j++){
-			*(buf2 + running*32) = buffer[j];
-			running++;
-			if (running > dirinbuf){
-				done = 1;
-				return -1;// Still have more to load.
+			singbuf = buffer[j];
+			memset(stbuf, 0 , sizeof(struct stat));
+			stbuf->st_ino = singbuf.inode_num;
+			stbuf->st_mode = in_table[stbuf->st_ino].mode;
+			//Set off
+			if(filler(buf, buffer[j].name, stbuf, off)){
+				return 0;
+			}
+			
+			off = off + sizeof(direntry);
+			if (off > sizeof(buf)){
+				done = 1;//Filler should return 1 in this case though.
+				return -1; // Still have more to load.
 			}
 		}
 	}
@@ -1296,15 +1318,23 @@ int sfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offse
 			return 0; //loaded the entirety of dirent structs into buffer yay
 		}
 		for(k = 0; k < 128; k++){
-			if(block_read(indirbuf[k], buffer)){
+			if(block_read(curnode.direct[k], buffer) < 0){
 				return 0; //loaded the entirety of dirent structs into buffer yay
 			}
 			for (j = 0 ; j < 16 ; j++){
-				*(buf2 + running*32) = buffer[j];
-				running++;
-				if (running > dirinbuf){
-					done = 1;
-					return -1;// Still have more to load.
+				singbuf = buffer[j];
+				memset(stbuf, 0 , sizeof(struct stat));
+				stbuf->st_ino = singbuf.inode_num;
+				stbuf->st_mode = in_table[stbuf->st_ino].mode;
+				//Set off
+				if(filler(buf, buffer[j].name, stbuf, off)){
+					return 0;
+				}
+				
+				off = off + sizeof(direntry);
+				if (off > sizeof(buf)){
+					done = 1;//Filler should return 1 in this case though.
+					return -1; // Still have more to load.
 				}
 			}
 		}
