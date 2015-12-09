@@ -384,7 +384,7 @@ void *sfs_init(struct fuse_conn_info *conn)
       root->direct[0] = blk;
       memset(temp,0,BLOCK_SIZE);
       memcpy(temp,tmp_dirent,sizeof(tmp_dirent));
-      int info = block_write(blk, &temp);
+      int info = block_write(blk, temp);
       
       memset(in_table,0,sizeof(in_table));
       in_table[0] = *root;
@@ -1109,6 +1109,7 @@ int get_parent_path(const char* path, char* name, char* buffer){
 	return 0;
 	
 }
+
 //Given a directory,
 //Find the next free block to write to.
 //Returns the blocknum that it writes to.
@@ -1121,10 +1122,10 @@ int writedirent(direntry entry, int inode_number){
 	int i; 
 	int j;
 	inode dir;
-	char buffer[BLOCK_SIZE];
-	char buffer2[BLOCK_SIZE];
+	int buffer[128];
+	int buffer2[128];
+	direntry buffarr[16];
 	block = get_free_block();
-	block_write(block, &entry);
 	dir = in_table[inode_number];
 	if(dir.inodetype == IFILE){
 		return -1; //Is file?!
@@ -1132,34 +1133,78 @@ int writedirent(direntry entry, int inode_number){
 	for(i = 0; i < DIRECT_SIZE; i++){
 		if(dir.direct[i] < 0){
 			dir.direct[i] = block;
+			
 			return block;
 		}
-	}
-	if(dir.single_indirect < 0){
-		dir.single_indirect = get_free_block();
-		dir.single_indirect = block;
-    indirect *tmp = malloc((sizeof(indirect))* 16);
-		for(i = 1; i<128; i++){
-			tmp->blocks[i] = -1;
+		//check every entry in block.
+		else{
+			if(block_read(dir.direct[i], buffarr) < 0){
+				return -1;
+			}
+			for(i = 0; i < 16; i++){
+				if(buffarr[i] == 0){
+					buffarr[i] = entry;
+					block_write(dir.direct[i], buffarr);
+					return dir.direct[i];
+				}
+				
+			}
 		}
-    block_write(block, tmp);
 	}
-
+	
+	//Do the same for single indirect blocks.
+	if(block_read(dir.single_indirect, buffer) < 0){
+		return -1;
+	}
 	for(i = 0; i < 128; i++){
-		if(block_read(dir.single_indirect, buffer) < 0){
-			return -1; //Errorsz
-		}
 		if(buffer[i] < 0){
 			buffer[i] = block;
 			return block;
 		}
+		//check every entry in block.
+		else{
+			if(block_read(buffer[i], buffarr) < 0){
+				return -1;
+			}
+			for(i = 0; i < 16; i++){
+				if(buffarr[i] == 0){
+					buffarr[i] = entry;
+					block_write(buffer[i], buffarr);
+					return buffer[i];
+				}
+				
+			}
+		}
 	}
-	for(i = 0; i < 128; i++){
-		if(block_read(dir.double_indirect, buffer2) <0){
-
+	//Do the same for double indirect blocks.
+	if(block_read(dir.double_indirect, buffer2) < 0){
+		return -1;
 	}
-	
-  }
+	for(j = 0; j < 128; j++){
+			
+		if(block_read(buffer2[j], buffer) < 0){
+			return -1;
+		}
+		for(i = 0; i < 128; i++){
+			if(buffer[i] < 0){
+				buffer[i] = block;
+				return block;
+			}
+			//check every entry in block.
+			else{
+				if(block_read(buffer[i], buffarr) < 0){
+					return -1;
+				}
+				for(i = 0; i < 16; i++){
+					if(buffarr[i] == 0){
+						buffarr[i] = entry;
+						block_write(buffer[i], buffarr);
+						return buffer[i];
+					}
+				}
+			}
+		}
+	}
 }
 
 
@@ -1171,6 +1216,7 @@ int sfs_mkdir(const char *path, mode_t mode)
 	int parent_in;
 	direntry entry;
 	char buffer[PATH_MAX];
+        direntry temp[16];
 	a = get_inode(path);
 	if( a > 0 && in_table[a].inodetype == IDIR){
 		return -1; //Error! It already exists!
@@ -1181,8 +1227,37 @@ int sfs_mkdir(const char *path, mode_t mode)
 	}
 	find_parent(path,buffer);
 	parent_in = get_inode(buffer);
+	writedirent(entry, parent_in);
 	
+	//Parent directory filled.
+	//Initialize our directory. Follows initialization of root closely.
 	
+      inode *di = malloc(sizeof(inode));
+      di->inode_number = entry.inode_number;
+      di->size = sizeof(direntry)*2;
+      di->uid = uid;
+      di->gid = gid;
+      di->inodetype = IDIR;
+      di->mode = S_IFDIR | 0755;
+      di->single_indirect = -1;
+      di->double_indirect = -1;
+      di->access_time.tv_sec = 0;
+      di->create_time.tv_sec = 0;
+      di->modify_time.tv_sec = 0;
+
+      //Initialize di dirent
+      char ent1[] = ".";
+      char ent2[] = "..";
+      direntry *tmp_dirent = calloc(16,sizeof(direntry));
+      direntry tmp_ent1 = init_direntry(0,ent1);
+      direntry tmp_ent2 = init_direntry(0,ent2);
+      tmp_dirent[0] = tmp_ent1;
+      tmp_dirent[1] = tmp_ent2;
+      int blk = get_free_block();
+      di->direct[0] = blk;
+      memset(temp,0,BLOCK_SIZE);
+      memcpy(temp,tmp_dirent,sizeof(tmp_dirent));
+      return block_write(blk, temp);
 }
 
 
