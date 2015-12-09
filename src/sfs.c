@@ -124,8 +124,8 @@ int get_inode(const char *path){//Returns the inode_number of an inode
 	int running = sizeof(path)+1;
 	inode curnode;
 	char patho[running+1];
-  	strncpy(patho, path, pathlen);
-  	patho[pathlen] = '/';
+  strncpy(patho, path, running);
+  patho[running] = '/';
 	int found = 0 ;
 	char buffer[PATH_MAX];
 	int result;
