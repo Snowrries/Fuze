@@ -952,7 +952,7 @@ int sfs_write(const char *path, const char *buf, size_t size, off_t offset,
 		return -1;//Error
 	}
 	curnode = in_table[inode_num];
-	bufferblocks = sizeof(buf)/BLOCK_SIZE;
+	bufferblocks = offset/BLOCK_SIZE;
 	char buffer[sizeof(buf)];
 	char indirbuf[128];
 	char indirbuf2[128];
