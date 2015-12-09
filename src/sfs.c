@@ -98,13 +98,16 @@ int get_inode_fragment(char* frag, int direct){
 	int result = 0;
 	int j;
 	char buffer[PATH_MAX];
+  log_msg("Entering inode frag\n");
 	if(result = block_read(direct, dirArray) <= 0){
+    log_msg("Failed to read\n");
 		return -1; //Couldn't read?
 	}
 	memset(buffer, 0, PATH_MAX);
 	memcpy(buffer,frag,sizeof(frag));
 	for(j = 0; j < 16; j++){
 		if(!strncmp(dirArray[j].name, buffer, 27)){
+      log_msg("Found block, %d \n",dirArray[j].inode_number);
 			return dirArray[j].inode_number;
 		}
 	}
@@ -119,24 +122,27 @@ int get_inode_fragment(char* frag, int direct){
 
 int get_inode(const char *path){//Returns the inode_number of an inode
 //Assume path is a valid, null terminated path name.
-	int num = 0;
+	int num = 1;
 	int cur_inode_number = 0; //Start at root!
 	int running = sizeof(path)+1;
 	inode curnode;
 	char patho[running+1];
   strncpy(patho, path, running);
   patho[running] = '/';
+  char *root = "/";
 	int found = 0 ;
 	char buffer[PATH_MAX];
 	int result;
-	int offset = 0;
 	int i;
 	int j;
 	int block_num;
 	int buf[128];
 	int buf2[128];
-	
-	while((num = num + parse_path(&patho[offset], buffer) + 1 ) <= running){
+	log_msg("Get Inode \n");
+  if (strncmp(path, root, PATH_MAX) == 0){
+    return 0;
+  }
+	while((num = num + parse_path(&patho[num], buffer) + 1 ) <= running){
 		//Fuse truncates all ending slashes for some reason. Thus, we pad the given path with a trailing slash.
 		//Then, we now have a normalized representation of a path, where every segment has a trailing /. 
 		
@@ -145,6 +151,7 @@ int get_inode(const char *path){//Returns the inode_number of an inode
 	//We end when we've parsed all the path.
 		//Starting at root directory. Read dirents.
 		//If path is valid, this is always a directory until the very end.
+    log_msg("Parsed_Path: %s \n",buffer);
 		
 		curnode = in_table[cur_inode_number];
 		if(curnode.inodetype == IFILE){
@@ -224,7 +231,6 @@ int get_inode(const char *path){//Returns the inode_number of an inode
 			return -4;
 			//Ridiculous. Doesn't exist in the direct, indirect, and double indirect... And they were all full!
 		}
-		offset = offset+num+1;
 		cur_inode_number = result;
 	}
 	return cur_inode_number;
@@ -243,6 +249,7 @@ int parse_path(const char *path, char* buffer){
 	strncpy(tpath, path, pathlen);
 	tpath[pathlen] = '\0';
 	int i = 0 ;
+  log_msg("Parse Path %s %d\n", path, strlen(path));
 	while( (a = tpath[offset]) != '/'){
 		buffer[i] = a;
 		offset++;
@@ -253,6 +260,7 @@ int parse_path(const char *path, char* buffer){
 		}
 	}
 	buffer[i] = '\0';
+  log_msg("In parsed path: %s",buffer);
 	//the return value is the number of characters up to the ending /.
 	// input: forexample/ would return 10.
 	// input: / would return 0.
@@ -492,6 +500,7 @@ int sfs_getattr(const char *path, struct stat *statbuf)
 
     memset(statbuf, 0, sizeof(struct stat));
     inode_num = get_inode(path);
+    log_msg("\n After get inode: %d \n", inode_num);
     if(inode_num >-1){
       cur_inode = in_table[inode_num];
       log_msg("\n Logging inode stat");
