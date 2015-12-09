@@ -122,14 +122,14 @@ int get_inode_fragment(char* frag, int direct){
 
 int get_inode(const char *path){//Returns the inode_number of an inode
 //Assume path is a valid, null terminated path name.
-	int num = 1;
+	int num = 0;
 	int cur_inode_number = 0; //Start at root!
-	int running = sizeof(path)+1;
+	int running = sizeof(path);
 	inode curnode;
 	char patho[running+1];
-  strncpy(patho, path, running);
-  patho[running] = '/';
-  char *root = "/";
+  	strncpy(patho, path, running);
+  	patho[running] = '/';
+  	//char *root = "/";
 	int found = 0 ;
 	char buffer[PATH_MAX];
 	int result;
@@ -139,9 +139,9 @@ int get_inode(const char *path){//Returns the inode_number of an inode
 	int buf[128];
 	int buf2[128];
 	log_msg("Get Inode \n");
-  if (strncmp(path, root, PATH_MAX) == 0){
-    return 0;
-  }
+  //if (strncmp(path, root, PATH_MAX) == 0){
+//    return 0;
+  //}
 	while((num = num + parse_path(&patho[num], buffer) + 1 ) <= running){
 		//Fuse truncates all ending slashes for some reason. Thus, we pad the given path with a trailing slash.
 		//Then, we now have a normalized representation of a path, where every segment has a trailing /. 
@@ -151,8 +151,7 @@ int get_inode(const char *path){//Returns the inode_number of an inode
 	//We end when we've parsed all the path.
 		//Starting at root directory. Read dirents.
 		//If path is valid, this is always a directory until the very end.
-    log_msg("Parsed_Path: %s \n",buffer);
-		
+    		log_msg("Parsed_Path: %s \n",buffer);
 		curnode = in_table[cur_inode_number];
 		if(curnode.inodetype == IFILE){
 			if(num < running){
@@ -165,21 +164,21 @@ int get_inode(const char *path){//Returns the inode_number of an inode
 		//Guaranteed to be a directory
 		
 
-	for(i = 0; i < DIRECT_SIZE; i++){
-		if(result = get_inode_fragment(buffer, curnode.direct[i]) == -1){
-			if(num < running){
-				//There is more path, but we can't find the directory... That's an error.
-				log_msg("Invalid path! Path: %s", path);
-				return -2;
+		for(i = 0; i < DIRECT_SIZE; i++){
+			if(result = get_inode_fragment(buffer, curnode.direct[i]) == -1){
+				if(num < running){
+					//There is more path, but we can't find the directory... That's an error.
+					log_msg("Invalid path! Path: %s", path);
+					return -2;
+				}
+				log_msg("File does not exist. Path: %s", path);
+				return -1;
+				//Critical error!
 			}
-			log_msg("File does not exist. Path: %s", path);
-			return -1;
-			//Critical error!
+			if(result > -1){
+				break;
+			}
 		}
-		if(result > -1){
-			break;
-		}
-	}
 		//if result == -2, we need to check indirects.
 		//Indirect checking
 		if(result == -2){
