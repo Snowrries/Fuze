@@ -609,9 +609,9 @@ int sfs_unlink(const char *path)
 	char buffer[PATH_MAX];
 	//char buffer2[PATH_MAX];
 	int pardone = 0;
-	direntry buf[512];
-  indirect *buf1;
-	indirect *buf2;
+	direntry buf[16];
+  int buf1[128];
+	int buf2[128];
 	inode_number = get_inode(path);
   inode rmnode = in_table[inode_number];
   inode par;
@@ -639,11 +639,11 @@ int sfs_unlink(const char *path)
 			return -1; //error
 		}
 		for(i = 0; i < 128; i++){
-      if(block_read(buf1->blocks[i], buf) >= 0){ //Read in Direntry Block
-       for(k = 0; j<16; j++){
-			   if(buf[i].inode_number == inode_number){ //Get Direntry inode number
-				  buf[i].inode_number  = -1;
-          *(buf[i].name) = '\0';
+      if(block_read(buf1[i], buf) >= 0){ //Read in Direntry Block
+       for(j = 0; j<16; j++){
+			   if(buf[j].inode_number == inode_number){ //Get Direntry inode number
+				  buf[j].inode_number  = -1;
+          *(buf[j].name) = '\0';
 				  pardone = 1;
 				  break;
 			   }
@@ -659,17 +659,17 @@ int sfs_unlink(const char *path)
 			return -1; //error
 		}
 		for(i = 0; i < 128; i++){
-			if(block_read(buf2->blocks[i],buf1)<0){ //Read in indirects
+			if(block_read(buf2[i],buf1)<0){ //Read in indirects
 				return -1; //error
 			}	
 			for(j = 0; j < 128; j++){ 
-        if(block_read(buf1->blocks[j],buf)<0){ //Read in Direntry Block
+        if(block_read(buf1[j],buf)<0){ //Read in Direntry Block
         return -1; //error
        }
         for(k = 0; k<16; k++){ //Get inode number
 				if(buf[k].inode_number == inode_number){
-					buf[i].inode_number  = -1;
-         *(buf[i].name) = '\0';
+					buf[k].inode_number  = -1;
+         *(buf[k].name) = '\0';
 					break;
 				  }
         }
@@ -698,7 +698,7 @@ int sfs_unlink(const char *path)
   if(check != -1){
 		if(block_read(indir, buf1) > 0){
 		for(i = 0; i < 128; i++){
-      check = buf1->blocks[i];
+      check = buf1[i];
 			if(check != -1){
 				data_bitmap[check] = 0;
 			}
@@ -719,9 +719,9 @@ int sfs_unlink(const char *path)
       return -1;
     }
 		for(i = 0; i < 128; i++){
-			block_read(buf2->blocks[i], buf1);
+			block_read(buf2[i], buf1);
 			for(j = 0; j < 128; j++ ){
-			 check = buf1->blocks[i];
+			 check = buf1[i];
        if(check != -1){
           data_bitmap[check] = 0;
        }
@@ -729,7 +729,7 @@ int sfs_unlink(const char *path)
 					break;
 				}
 			}
-			data_bitmap[buf2->blocks[i]] = 0;
+			data_bitmap[buf2[i]] = 0;
 		}
 		data_bitmap[indir2] = 0;
 	}
