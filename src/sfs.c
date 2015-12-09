@@ -119,12 +119,11 @@ int get_inode_fragment(char* frag, int direct){
 
 int get_inode(const char *path){//Returns the inode_number of an inode
 //Assume path is a valid, null terminated path name.
-	int num;
+	int num = 0;
 	int cur_inode_number = 0; //Start at root!
-	int running = 0;
+	int running = sizeof(path)+1;
 	inode curnode;
-	int pathlen = strnlen(path, PATH_MAX);
-	char patho[pathlen+1];
+	char patho[running+1];
   	strncpy(patho, path, pathlen);
   	patho[pathlen] = '/';
 	int found = 0 ;
@@ -134,8 +133,8 @@ int get_inode(const char *path){//Returns the inode_number of an inode
 	int i;
 	int j;
 	int block_num;
-	char buf[BLOCK_SIZE];
-	char buf2[BLOCK_SIZE];
+	int buf[128];
+	int buf2[128];
 	
 	while((num = num + parse_path(&patho[offset], buffer) + 1 ) <= running){
 		//Fuse truncates all ending slashes for some reason. Thus, we pad the given path with a trailing slash.
@@ -228,7 +227,6 @@ int get_inode(const char *path){//Returns the inode_number of an inode
 		offset = offset+num+1;
 		cur_inode_number = result;
 	}
-  log_msg("\n Buffering");
 	return cur_inode_number;
 }
 //Finds the leftmost segment of a valid pathname, and returns it terminated by a null byte, without the ending /
@@ -272,7 +270,7 @@ int find_parent(const char *path, char* buf){
 	tpath[pathlen] = '\0';
 	int offset = 0;
 	int offparent = 0;
-	int numread;
+	int numread = 0;
 	int retval = 0;
 /*	if(strncmp(path, "/", 2)){
 		strncpy(buf, "/", 2);
