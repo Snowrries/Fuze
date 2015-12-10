@@ -3,6 +3,12 @@
 Our filesystem implements directories with two layers of indirection.
 opendir, closedir, mkdir, and rmdir are all implemented.
 
+We organize every file with an inode structure, using a direct array and two levels of indirection to point to data blocks. 
+Directories are just files with a mode bit set to indication directory status, and store directory entry structs in the data blocks.
+Data blocks and inode numbers are each mapped to a char array, 0 for free, 1 for in use.
+We map inode numbers to actual inode structs with a simple array, stored in consecutive data blocks in reserved data block space.
+
+
 We organize our disc as follows: 
 The first block is reserved for the superblock.
 We then allocate one block each for the inode bitmap and block bitmap
