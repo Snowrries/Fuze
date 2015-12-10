@@ -1263,15 +1263,97 @@ int sfs_mkdir(const char *path, mode_t mode)
 }
 
 
+
+
+int rmdir_help(direntry entry, int block_[], int size){
+	int block;
+	direntry buffarr[16];
+	int i;
+	int j;
+	for(i = 0; i<size; i++){
+	//Check if we have an unallocated block.
+		if(block = block_[i] < 0){//If this is >=0, it will set block and fall through to the else.
+			block = get_free_block();
+			blkarr[i] = block;
+			buffarr =  malloc(16*(sizeof(direntry)));
+			buffarr[0] = entry;
+			for(j = 1; j<16; j++){//Set inode_numbers to -1 so we can tell where we have free direntry spaces on next call.
+				buffarr[j].inode_number = -1;
+			}
+			block_write(block, buffarr);
+			return block;
+		}
+		//check every entry in block.
+		else{
+			if(block_read(block, buffarr) < 0){
+				return -1;
+			}
+			for(j = 0; j < 16; j++){
+				if(buffarr[j].inode_number < 0){//We init the blocks to have -1 as all the available direntry's inode numbers. 
+					buffarr[j] = entry;
+					block_write(block, buffarr);
+					return block;
+				}
+			}
+		}
+	}
+}
+
+
+
+
+
+ //Look in directory. Find the parent dirent.
+ //Get the inode_number from the parent dirent.
+ //Go to the parent dirent and search for the current directory's inode. 
+ //Set that direntry's inode_number to -1.
+ //Set the block numbers of that direntry from the bitmap to 0.
+ //Set the inode bitmap number to 0
+ //Return 0 on success. 
+ //Return -1 on failure.
+
 /** Remove a directory */
 int sfs_rmdir(const char *path)
 {
-    int retstat = 0;
-    log_msg("sfs_rmdir(path=\"%s\")\n",
-	    path);
+	
+    log_msg("sfs_rmdir(path=\"%s\")\n",path);
+    int parentnode;
+    int curnode;
+    int curblock;
+    int tmpblk;
+    int i;
+    direntry buf[16];
+    if(curnode = get_inode(path) < 0){
+    	return -1;
+    }
+    //If there are any things in the directory besides . and .., it's not empty, and we have an error on our hands.
+    if(curnode.single_indirect >-1 || curnode.double_indirect > -1){
+    	return -1;
+    }
+    for(i = 1; i < DIRECT_SIZE; i++){
+    	if(curnode.direct[i] > 0){
+    		return -1;
+    	}
+    }
+    tmpblk = curnode.direct[0];
+    if(block_read(tmpblk, buf) < 0){
+    	return -1;
+    }
+    for(i = 2; i < 16; i++){
+    	if(buf[i] > 0){
+    		return -1;
+    	}
+    }
+    //We are now assured that our directory is empty.
+    parentnode = buf[1]; //Assured that this is parent. We set this on directory creation.
+    //Consider locking bitmap access?
+    //Remove block number from bitmap.
+    
+    //Find curnode in parentnode's direntrys.
     
     
-    return retstat;
+    
+    
 }
 
 
@@ -1321,8 +1403,7 @@ int sfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offse
 	//Path is a directory. 
 	//Ignore filler, ignore offset, ignore fi. 
 	//Put the entirety of the directory entries into buf.
-  log_msg("\nsfs_readdir(path=\"%s\", buf=0x%08x, filler=0x%08x, offset=%lld, fi=0x%08x)\n",
-      path, buf, filler, offset, fi);
+	log_msg("\nsfs_readdir(path=\"%s\", buf=0x%08x, filler=0x%08x, offset=%lld, fi=0x%08x)\n", path, buf, filler, offset, fi);
 	int dirinbuf;
 	int i;
 	int j;
@@ -1416,28 +1497,7 @@ int sfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offse
 			}
 		}
 	}
-	
-    /*
-    DIR *somedir;
-    struct dirent *entry;
-//    struct stat statarg;
-    if( (somedir=opendir(path) < 0) {
-    	return errno; //Does this have to be negative? PositivE?
-    }
-    while((entry = readdir(somedir))!= NULL){
-//    	memset(&statarg, 0, sizeof(statarg));
-//    	statarg.sg_ino= 
-	if (filler(buf, entry->d_name, NULL, 0)){
-		closedir(somedir);
-		return 0;
-	}
-	//If readdir is null, that's all the stuff in the directory
-	//If filler is 0, something's wrong.
-	//Just quit in either case. They'll never know! 
-    }
-    closedir(somedir);
-    return 0;
-    */
+
 }
 
 
@@ -1472,12 +1532,11 @@ int sfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offse
  *
  * Introduced in version 2.3
  */
+ //In our way of doing things, we have nothing to release.
+
 int sfs_releasedir(const char *path, struct fuse_file_info *fi)
 {
-    int retstat = 0;
-
-    
-    return retstat;
+ return 0;
 }
 
 struct fuse_operations sfs_oper = {
