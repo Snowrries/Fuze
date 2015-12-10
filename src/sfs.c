@@ -1112,8 +1112,12 @@ int get_parent_path(const char* path, char* name, char* buffer){
 
 //Given a directory,
 //Find the next free block to write to.
+//Copy block and write a direntry to it
+//Write the block back.
 //Returns the blocknum that it writes to.
+//If we need to init a block,
 //Set the block num in the directory pointed to by the inode.
+//Put an empty array of direntry buffarr[16] in with the first entry initted to the given entry.
 //-1 if there is no free block.
 
 int writedirent(direntry entry, int inode_number){
@@ -1125,15 +1129,19 @@ int writedirent(direntry entry, int inode_number){
 	int buffer[128];
 	int buffer2[128];
 	direntry buffarr[16];
-	block = get_free_block();
 	dir = in_table[inode_number];
+	direntry nulent;
+	memset(&nulent, 0, sizeof(direntry));
 	if(dir.inodetype == IFILE){
 		return -1; //Is file?!
 	}
 	for(i = 0; i < DIRECT_SIZE; i++){
 		if(dir.direct[i] < 0){
+			block = get_free_block();
 			dir.direct[i] = block;
-			
+			buffarr = calloc(16, sizeof(direntry));
+			buffarr[0] = entry;
+			block_write(block, buffarr);
 			return block;
 		}
 		//check every entry in block.
@@ -1142,7 +1150,7 @@ int writedirent(direntry entry, int inode_number){
 				return -1;
 			}
 			for(i = 0; i < 16; i++){
-				if(buffarr[i] == 0){
+				if(buffarr[i] == nulent){
 					buffarr[i] = entry;
 					block_write(dir.direct[i], buffarr);
 					return dir.direct[i];
