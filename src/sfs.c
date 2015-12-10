@@ -377,9 +377,9 @@ void *sfs_init(struct fuse_conn_info *conn)
       char ent1[] = ".";
       char ent2[] = "..";
       direntry *tmp_dirent = malloc(16*sizeof(direntry));
-      tmp_dirent[0] = init_direntry(a, ent1);
-      tmp_dirent[1] = init_direntry(parent_in, ent2);
-      di->direct[0] = get_free_block();
+      tmp_dirent[0] = init_direntry(0, ent1);
+      tmp_dirent[1] = init_direntry(0, ent2);
+      root->direct[0] = get_free_block();
       for(i = 2; i<16; i++){
       	tmp_dirent[i].inode_number = -1;
       }
@@ -1138,14 +1138,14 @@ int get_parent_path(const char* path, char* name, char* buffer){
 
 int writedirent_help(direntry entry, int block_[], int size){
 	int block;
-	direntry buffarr[16];
+	direntry *buffarr;
 	int i;
 	int j;
 	for(i = 0; i<size; i++){
 	//Check if we have an unallocated block.
 		if(block = block_[i] < 0){//If this is >=0, it will set block and fall through to the else.
 			block = get_free_block();
-			blkarr[i] = block;
+			block_[i] = block;
 			buffarr =  malloc(16*(sizeof(direntry)));
 			buffarr[0] = entry;
 			for(j = 1; j<16; j++){//Set inode_numbers to -1 so we can tell where we have free direntry spaces on next call.
@@ -1261,7 +1261,7 @@ int sfs_mkdir(const char *path, mode_t mode)
       for(i = 2; i<16; i++){
       	tmp_dirent[i].inode_number = -1;
       }
-      return block_write(blk, tmp_dirent);
+      return block_write(di->direct[0], tmp_dirent);
 }
 
 
@@ -1328,8 +1328,9 @@ int sfs_rmdir(const char *path)
 {
 	
     log_msg("sfs_rmdir(path=\"%s\")\n",path);
+    inode *curnode;
     int parentnode;
-    int curnode;
+    int curnode_num;
     int curblock;
     int tmpblk;
     int i;
@@ -1340,16 +1341,18 @@ int sfs_rmdir(const char *path)
     if(curnode = get_inode(path) < 0){
     	return -1;
     }
+    curnode = malloc(sizeof(inode));
+    blockread(curnode_num,curnode);
     //If there are any things in the directory besides . and .., it's not empty, and we have an error on our hands.
-    if(curnode.single_indirect >-1 || curnode.double_indirect > -1){
+    if(curnode->single_indirect >-1 || curnode->double_indirect > -1){
     	return -1;
     }
     for(i = 1; i < DIRECT_SIZE; i++){
-    	if(curnode.direct[i] > 0){
+    	if(curnode->direct[i] > 0){
     		return -1;
     	}
     }
-    tmpblk = curnode.direct[0];
+    tmpblk = curnode->direct[0];
     if(block_read(tmpblk, buf) < 0){
     	return -1;
     }
