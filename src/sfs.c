@@ -540,6 +540,7 @@ int sfs_getattr(const char *path, struct stat *statbuf)
  	int i;
  	for(i = 0; i<MAX_BLOCKS; i++ ){
  		if(!data_bitmap[i]){
+ 			data_bitmap[i] = 1;
  			return i;
  		}
  	}
@@ -551,6 +552,7 @@ int sfs_getattr(const char *path, struct stat *statbuf)
  	int i;
  	for(i = 0; i<MAX_NODES; i++ ){
  		if(!inode_bitmap[i]){
+ 			inode_bitmap[i] = 1;
  			return i;
  		}
  	}
