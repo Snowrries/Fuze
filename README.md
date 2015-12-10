@@ -1,9 +1,7 @@
 # Fuze
-You should also submit a PDF describing the design of your filesystem, including the physical organization of your
-indexes and data structures in the flat file and how they are used to implement the logical operations required by
-the filesystem.
 
 Our filesystem implements directories with two layers of indirection.
+opendir, closedir, mkdir, and rmdir are all implemented.
 
 We organize our disc as follows: 
 The first block is reserved for the superblock.
