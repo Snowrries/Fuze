@@ -95,7 +95,8 @@ direntry init_direntry(int n, char *name){
 //If it doesn't exist but might be in an indirect, it will return 1.
 int get_inode_fragment(char* frag, int direct){
 	direntry dirArray[16]; //512 bytes / block and 32 bytes/direntry. 16 direntries in a dirArray
-	int result = 0;
+	log_msg("Entering get frag:%s, block:%d ",frag,direct);
+  int result = 0;
 	int j;
 	char buffer[PATH_MAX];
   log_msg("Entering inode frag\n");
@@ -124,11 +125,10 @@ int get_inode(const char *path){//Returns the inode_number of an inode
 //Assume path is a valid, null terminated path name.
 	int num = 0;
 	int cur_inode_number = 0; //Start at root!
-	int running = sizeof(path);
+	int running = strlen(path);
 	inode curnode;
-	char patho[running+1];
-  	strncpy(patho, path, running);
-  	patho[running] = '/';
+	char patho[running];
+  strncpy(patho, path, running);
   	//char *root = "/";
 	int found = 0 ;
 	char buffer[PATH_MAX];
@@ -138,11 +138,11 @@ int get_inode(const char *path){//Returns the inode_number of an inode
 	int block_num;
 	int buf[128];
 	int buf2[128];
-	log_msg("Get Inode \n");
+	log_msg("Get Inode %d\n",running);
   //if (strncmp(path, root, PATH_MAX) == 0){
 //    return 0;
   //}
-	while((num = num + parse_path(&patho[num], buffer) + 1 ) <= running){
+	while((num = num + parse_path(&patho[num], buffer) + 1 ) < running){
 		//Fuse truncates all ending slashes for some reason. Thus, we pad the given path with a trailing slash.
 		//Then, we now have a normalized representation of a path, where every segment has a trailing /. 
 		
@@ -151,8 +151,9 @@ int get_inode(const char *path){//Returns the inode_number of an inode
 	//We end when we've parsed all the path.
 		//Starting at root directory. Read dirents.
 		//If path is valid, this is always a directory until the very end.
-    		log_msg("Parsed_Path: %s \n",buffer);
+    log_msg("Parsed_Path: %s \n",buffer);
 		curnode = in_table[cur_inode_number];
+    log_msg("Inode Number %d \n",curnode);
 		if(curnode.inodetype == IFILE){
 			if(num < running){
 				//There is more path, but we hit a file... That's an error.
@@ -248,7 +249,7 @@ int parse_path(const char *path, char* buffer){
 	strncpy(tpath, path, pathlen);
 	tpath[pathlen] = '\0';
 	int i = 0 ;
-  log_msg("Parse Path %s %d\n", path, strlen(path));
+  log_msg("Parse Path%s %d\n", path, strlen(path));
 	while( (a = tpath[offset]) != '/'){
 		buffer[i] = a;
 		offset++;
@@ -258,8 +259,9 @@ int parse_path(const char *path, char* buffer){
 			return -1;
 		}
 	}
-	buffer[i] = '\0';
-  log_msg("In parsed path: %s",buffer);
+  buffer[i] = '/';
+	//buffer[i+1] = '\0';
+  log_msg("In parsed path:%s",buffer);
 	//the return value is the number of characters up to the ending /.
 	// input: forexample/ would return 10.
 	// input: / would return 0.
@@ -375,6 +377,7 @@ void *sfs_init(struct fuse_conn_info *conn)
       //Initialize root dirent
             //Initialize di dirent
       char ent1[] = ".";
+      
       char ent2[] = "..";
       direntry *tmp_dirent = malloc(16*sizeof(direntry));
       tmp_dirent[0] = init_direntry(0, ent1);
@@ -383,8 +386,9 @@ void *sfs_init(struct fuse_conn_info *conn)
       for(i = 2; i<16; i++){
       	tmp_dirent[i].inode_number = -1;
       }
-      int info = block_write(0, tmp_dirent);
-      
+      int info = block_write(root->direct[0], tmp_dirent);
+      data_bitmap[root->direct[0]] = 1;
+      block_write(1,data_bitmap);
       memset(in_table,0,sizeof(in_table));
       in_table[0] = *root;
       char* buf = malloc(BLOCK_SIZE);
