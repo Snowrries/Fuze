@@ -335,7 +335,7 @@ void *sfs_init(struct fuse_conn_info *conn)
       memset(temp,0,BLOCK_SIZE);
       memcpy(temp,&superblk,sizeof(superblk));
 
-      if(block_write(0,&temp) >0){
+      if(block_write(0,temp) >0){
         log_msg("\n SUPERBLOCK initialized");
       }
 
@@ -345,7 +345,7 @@ void *sfs_init(struct fuse_conn_info *conn)
       for(i = 0; i < n;i++){
           data_bitmap[i] = 1;
       }
-      if(block_write(1,&data_bitmap) >0){
+      if(block_write(1,data_bitmap) >0){
         log_msg("\n DATABITMAP initialized");
       }
 
@@ -1128,7 +1128,7 @@ int writedirent(direntry entry, int inode_number){
 	inode dir;
 	int buffer[128];
 	int buffer2[128];
-	direntry buffarr[16];
+	direntry *buffarr;
 	dir = in_table[inode_number];
 	direntry nulent;
 	memset(&nulent, 0, sizeof(direntry));
@@ -1139,7 +1139,7 @@ int writedirent(direntry entry, int inode_number){
 		if(dir.direct[i] < 0){
 			block = get_free_block();
 			dir.direct[i] = block;
-			buffarr = calloc(16, sizeof(direntry));
+			buffarr =  malloc(16*(sizeof(direntry)));
 			buffarr[0] = entry;
 			block_write(block, buffarr);
 			return block;
@@ -1165,7 +1165,7 @@ int writedirent(direntry entry, int inode_number){
 		return -1;
 	}
 	for(i = 0; i < 128; i++){
-		if(buffer[i] < 0){
+		if(buffer[i] < nulent){
 			buffer[i] = block;
 			return block;
 		}
@@ -1175,7 +1175,7 @@ int writedirent(direntry entry, int inode_number){
 				return -1;
 			}
 			for(i = 0; i < 16; i++){
-				if(buffarr[i] == 0){
+				if(buffarr[i] == nulent){
 					buffarr[i] = entry;
 					block_write(buffer[i], buffarr);
 					return buffer[i];
@@ -1239,7 +1239,8 @@ int sfs_mkdir(const char *path, mode_t mode)
 	
 	//Parent directory filled.
 	//Initialize our directory. Follows initialization of root closely.
-	
+	   int uid = getuid();
+     int gid = getgid();
       inode *di = malloc(sizeof(inode));
       di->inode_number = entry.inode_number;
       di->size = sizeof(direntry)*2;
