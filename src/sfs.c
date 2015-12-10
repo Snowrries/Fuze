@@ -142,7 +142,7 @@ int get_inode(const char *path){//Returns the inode_number of an inode
   //if (strncmp(path, root, PATH_MAX) == 0){
 //    return 0;
   //}
-	while((num = num + parse_path(&patho[num], buffer) + 1 ) < running){
+	while((num = (num + parse_path(&patho[num], buffer) + 1) ) < running){
 		//Fuse truncates all ending slashes for some reason. Thus, we pad the given path with a trailing slash.
 		//Then, we now have a normalized representation of a path, where every segment has a trailing /. 
 		
