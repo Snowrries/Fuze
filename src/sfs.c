@@ -1357,7 +1357,7 @@ int sfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offse
 		for (j = 0 ; j < 16 ; j++){
 			singbuf = buffer[j];
 			memset(stbuf, 0 , sizeof(struct stat));
-			stbuf->st_ino = singbuf.inode_num;
+			stbuf->st_ino = singbuf.inode_number;
 			stbuf->st_mode = in_table[stbuf->st_ino].mode;
 			//Set off
 			if(filler(buf, buffer[j].name, stbuf, off)){
@@ -1379,7 +1379,7 @@ int sfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offse
 		for (j = 0 ; j < 16 ; j++){
 			singbuf = buffer[j];
 			memset(stbuf, 0 , sizeof(struct stat));
-			stbuf->st_ino = singbuf.inode_num;
+			stbuf->st_ino = singbuf.inode_number;
 			stbuf->st_mode = in_table[stbuf->st_ino].mode;
 			//Set off
 			if(filler(buf, buffer[j].name, stbuf, off)){
@@ -1407,7 +1407,7 @@ int sfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offse
 			for (j = 0 ; j < 16 ; j++){
 				singbuf = buffer[j];
 				memset(stbuf, 0 , sizeof(struct stat));
-				stbuf->st_ino = singbuf.inode_num;
+				stbuf->st_ino = singbuf.inode_number;
 				stbuf->st_mode = in_table[stbuf->st_ino].mode;
 				//Set off
 				if(filler(buf, buffer[j].name, stbuf, off)){
