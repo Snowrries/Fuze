@@ -1337,8 +1337,8 @@ int sfs_rmdir(const char *path)
     int i;
     int res;
     direntry buf[16];
-    char* buf1[BLOCK_SIZE];
-    char* buf2[BLOCK_SIZE];
+    int buf1[128];
+    int buf2[128];
     if(curnode_num = get_inode(path) < 0){
     	return -1;
     }
@@ -1359,7 +1359,7 @@ int sfs_rmdir(const char *path)
     	return -1;
     }
     for(i = 2; i < 16; i++){
-    	if(buf[i] > 0){
+    	if(buf[i].inode_number > 0){
     		return -1;
     	}
     }
@@ -1375,7 +1375,7 @@ int sfs_rmdir(const char *path)
     	if(block_read(parent->single_indirect, buf1) < 0){
     		return -1;
     	}
-    	if(res = rmdir_help(curnode_num, buf1, BLOCK_SIZE) == -2){
+    	if(res = rmdir_help(curnode_num, buf1, 128) == -2){
     		if(block_read(parent->double_indirect, buf2) < 0){
     		return -1;
 	 	}
@@ -1383,7 +1383,7 @@ int sfs_rmdir(const char *path)
 	 		if(block_read(buf2[i], buf1) < 0){
 		    		return -1;
 		    	}
-		    	if(res = rmdir_help(curnode_num, buf1, BLOCK_SIZE) != -2){
+		    	if(res = rmdir_help(curnode_num, buf1, 128) != -2){
 		    		break;
 		    	}
 	 	}
