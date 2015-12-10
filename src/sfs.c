@@ -1329,6 +1329,7 @@ int sfs_rmdir(const char *path)
 	
     log_msg("sfs_rmdir(path=\"%s\")\n",path);
     inode *curnode;
+    inode *parent;
     int parentnode;
     int curnode_num;
     int curblock;
@@ -1341,7 +1342,7 @@ int sfs_rmdir(const char *path)
     if(curnode_num = get_inode(path) < 0){
     	return -1;
     }
-    curnode = in_table[curnode_num];
+    curnode = &in_table[curnode_num];
     //curnode = malloc(sizeof(inode));
     //blockread(curnode_num,curnode);
     //If there are any things in the directory besides . and .., it's not empty, and we have an error on our hands.
@@ -1364,24 +1365,25 @@ int sfs_rmdir(const char *path)
     }
     //We are now assured that our directory is empty.
     parentnode = buf[1].inode_number; //Assured that this is parent. We set this on directory creation.
+    parent = &in_table[parentnode];
     //Consider locking bitmap access?
     //Remove block number from bitmap.
     data_bitmap[tmpblk] = 0;
     //Find curnode in parentnode's direntries.
     //int rmdir_help(int inode to remove, int pointer to a list of blocks [], int size of block array){
-    if(res = rmdir_help(curnode, parent.direct, DIRECT_SIZE) == -2){
-    	if(block_read(parent.single_indirect, buf1) < 0){
+    if(res = rmdir_help(curnode_num, parent->direct, DIRECT_SIZE) == -2){
+    	if(block_read(parent->single_indirect, buf1) < 0){
     		return -1;
     	}
-    	if(res = rmdir_help(curnode, buf1, BLOCK_SIZE) == -2){
-    		if(block_read(parent.double_indirect, buf2) < 0){
+    	if(res = rmdir_help(curnode_num, buf1, BLOCK_SIZE) == -2){
+    		if(block_read(parent->double_indirect, buf2) < 0){
     		return -1;
 	 	}
 	 	for(i = 0; i < 128; i++){
 	 		if(block_read(buf2[i], buf1) < 0){
 		    		return -1;
 		    	}
-		    	if(res = rmdir_help(curnode, buf1, BLOCK_SIZE) != -2){
+		    	if(res = rmdir_help(curnode_num, buf1, BLOCK_SIZE) != -2){
 		    		break;
 		    	}
 	 	}
