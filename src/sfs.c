@@ -317,7 +317,7 @@ void *sfs_init(struct fuse_conn_info *conn)
     int k;
     fprintf(stderr, "in bb-init\n");
     log_msg("\nsfs_init()\n");
-    
+    int retval;
     log_conn(conn);
     log_fuse_context(fuse_get_context());
     /* 
@@ -373,33 +373,42 @@ void *sfs_init(struct fuse_conn_info *conn)
       root->modify_time.tv_sec = 0;
 
       //Initialize root dirent
+            //Initialize di dirent
       char ent1[] = ".";
       char ent2[] = "..";
-      direntry *tmp_dirent = calloc(16,sizeof(direntry));
-      direntry tmp_ent1 = init_direntry(0,ent1);
-      direntry tmp_ent2 = init_direntry(0,ent2);
-      tmp_dirent[0] = tmp_ent1;
-      tmp_dirent[1] = tmp_ent2;
-      int blk = get_free_block();
-      root->direct[0] = blk;
-      memset(temp,0,BLOCK_SIZE);
-      memcpy(temp,tmp_dirent,sizeof(tmp_dirent));
-      int info = block_write(blk, temp);
+      direntry *tmp_dirent = malloc(16*sizeof(direntry));
+      tmp_dirent[0] = init_direntry(a, ent1);
+      tmp_dirent[1] = init_direntry(parent_in, ent2);
+      di->direct[0] = get_free_block();
+      for(i = 2; i<16; i++){
+      	tmp_dirent[i].inode_number = -1;
+      }
+      int info = block_write(0, tmp_dirent);
       
       memset(in_table,0,sizeof(in_table));
       in_table[0] = *root;
       char* buf = malloc(BLOCK_SIZE);
       memset(buf, 0, BLOCK_SIZE);
+    
+      //char* buf = malloc(BLOCK_SIZE);
+      //starting from block 3, put the address of every four tmp inodes into buf... 
+      //A block can hold 4 inodes.
+      //Inode addresses are consecutive, and stored in the inode table, in_table.
+      //Write the inode structs to memory, so that we map the addresses to a spot on disc and can read them on remounting
       k=0;
-      for(b =3; b<INODE_TLB_BLKS+3; b++){
+      for(b = 3; b < INODE_TLB_BLKS + 3; b++){
          /*REALLY DANGEROUS AND COULD GET OUT OF BOUNDS PLEASE FIX*/
-            //INODE_TLB_BLKS+3
-          inode *tmp = &in_table[k];
+         /* inode *tmp = &in_table[k];
           k = k+4;
           memcpy(buf, tmp, sizeof(buf));
           if(block_write(b,buf) == 0){
-            break;
+        	break;
+          }*/
+          if(block_write(b, &in_table[k]) < 0){
+          	retval = -1;
+          	break;
           }
+          k = k+4;
        }
 
       //inode_numbers explained: This is just a number to uniquely identify our inodes. 2 is always root.
@@ -1120,99 +1129,84 @@ int get_parent_path(const char* path, char* name, char* buffer){
 //Put an empty array of direntry buffarr[16] in with the first entry initted to the given entry.
 //-1 if there is no free block.
 
-int writedirent(direntry entry, int inode_number){
-	log_msg("writedirent");
+
+//Pass an array of block numbers to writedirent_help.
+//helper function of helper function will return block number that is written to.
+//On error, return -1.
+
+int writedirent_help(direntry entry, int block_[], int size){
 	int block;
-	int i; 
+	direntry buffarr[16];
+	int i;
 	int j;
-	inode dir;
-	int buffer[128];
-	int buffer2[128];
-	direntry *buffarr;
-	dir = in_table[inode_number];
-	direntry nulent;
-	memset(&nulent, 0, sizeof(direntry));
-	if(dir.inodetype == IFILE){
-		return -1; //Is file?!
-	}
-	for(i = 0; i < DIRECT_SIZE; i++){
-		if(dir.direct[i] < 0){
+	for(i = 0; i<size; i++){
+	//Check if we have an unallocated block.
+		if(block = block_[i] < 0){//If this is >=0, it will set block and fall through to the else.
 			block = get_free_block();
-			dir.direct[i] = block;
+			blkarr[i] = block;
 			buffarr =  malloc(16*(sizeof(direntry)));
 			buffarr[0] = entry;
+			for(j = 1; j<16; j++){//Set inode_numbers to -1 so we can tell where we have free direntry spaces on next call.
+				buffarr[j].inode_number = -1;
+			}
 			block_write(block, buffarr);
 			return block;
 		}
 		//check every entry in block.
 		else{
-			if(block_read(dir.direct[i], buffarr) < 0){
+			if(block_read(block, buffarr) < 0){
 				return -1;
 			}
-			for(i = 0; i < 16; i++){
-				if(buffarr[i] == nulent){
-					buffarr[i] = entry;
-					block_write(dir.direct[i], buffarr);
-					return dir.direct[i];
+			for(j = 0; j < 16; j++){
+				if(buffarr[j].inode_number < 0){//We init the blocks to have -1 as all the available direntry's inode numbers. 
+					buffarr[j] = entry;
+					block_write(block, buffarr);
+					return block;
 				}
-				
 			}
 		}
 	}
-	
-	//Do the same for single indirect blocks.
-	if(block_read(dir.single_indirect, buffer) < 0){
-		return -1;
+}
+
+int writedirent(direntry entry, int inode_number){
+	log_msg("writedirent");
+	int block;
+	int i; 
+	int j;
+	int retval;
+	inode dir;
+	int buffer[128];
+	int buffer2[128];
+	direntry *buffarr;
+	dir = in_table[inode_number];
+	if(dir.inodetype == IFILE){
+		return -1; //Is file?!
 	}
-	for(i = 0; i < 128; i++){
-		if(buffer[i] < nulent){
-			buffer[i] = block;
-			return block;
-		}
-		//check every entry in block.
-		else{
-			if(block_read(buffer[i], buffarr) < 0){
-				return -1;
-			}
-			for(i = 0; i < 16; i++){
-				if(buffarr[i] == nulent){
-					buffarr[i] = entry;
-					block_write(buffer[i], buffarr);
-					return buffer[i];
-				}
-				
-			}
-		}
-	}
-	//Do the same for double indirect blocks.
-	if(block_read(dir.double_indirect, buffer2) < 0){
-		return -1;
-	}
-	for(j = 0; j < 128; j++){
-			
-		if(block_read(buffer2[j], buffer) < 0){
+	//Lots of error checking here. Basically, call the helper function to check for space in
+	//1) the direct block number array, each filled with 16 direntry structs.
+	//2) the indirect block 
+	//3) the double indirect block
+	//Return -1 on error, returns the block it wrote to on success.
+	if(block = writedirent_help(entry, dir.direct, DIRECT_SIZE) < 0){
+		if(block_read(dir.single_indirect, buffer) < 0){
 			return -1;
 		}
-		for(i = 0; i < 128; i++){
-			if(buffer[i] < 0){
-				buffer[i] = block;
-				return block;
+		if(block = writedirent_help(entry, buffer, 128) < 0){
+			if(block_read(dir.double_indirect, buffer2) < 0){
+				return -1;
 			}
-			//check every entry in block.
-			else{
-				if(block_read(buffer[i], buffarr) < 0){
+			for(i = 0; i < 128; i++){
+				if(block_read(buffer2[i], buffer) < 0){
 					return -1;
 				}
-				for(i = 0; i < 16; i++){
-					if(buffarr[i] == 0){
-						buffarr[i] = entry;
-						block_write(buffer[i], buffarr);
-						return buffer[i];
-					}
+				if(writedirent_help(entry, buffer, 128) < 0){
+					return -1;
 				}
 			}
+			
 		}
 	}
+	return block;
 }
 
 
@@ -1225,6 +1219,7 @@ int sfs_mkdir(const char *path, mode_t mode)
 	direntry entry;
 	char buffer[PATH_MAX];
         direntry temp[16];
+        int i;
 	a = get_inode(path);
 	if( a > 0 && in_table[a].inodetype == IDIR){
 		return -1; //Error! It already exists!
@@ -1239,9 +1234,9 @@ int sfs_mkdir(const char *path, mode_t mode)
 	
 	//Parent directory filled.
 	//Initialize our directory. Follows initialization of root closely.
-	   int uid = getuid();
-     int gid = getgid();
-      inode *di = malloc(sizeof(inode));
+	int uid = getuid();
+      	int gid = getgid();
+      	inode *di = malloc(sizeof(inode));
       di->inode_number = entry.inode_number;
       di->size = sizeof(direntry)*2;
       di->uid = uid;
@@ -1257,16 +1252,14 @@ int sfs_mkdir(const char *path, mode_t mode)
       //Initialize di dirent
       char ent1[] = ".";
       char ent2[] = "..";
-      direntry *tmp_dirent = calloc(16,sizeof(direntry));
-      direntry tmp_ent1 = init_direntry(0,ent1);
-      direntry tmp_ent2 = init_direntry(0,ent2);
-      tmp_dirent[0] = tmp_ent1;
-      tmp_dirent[1] = tmp_ent2;
-      int blk = get_free_block();
-      di->direct[0] = blk;
-      memset(temp,0,BLOCK_SIZE);
-      memcpy(temp,tmp_dirent,sizeof(tmp_dirent));
-      return block_write(blk, temp);
+      direntry *tmp_dirent = malloc(16*sizeof(direntry));
+      tmp_dirent[0] = init_direntry(a, ent1);
+      tmp_dirent[1] = init_direntry(parent_in, ent2);
+      di->direct[0] = get_free_block();
+      for(i = 2; i<16; i++){
+      	tmp_dirent[i].inode_number = -1;
+      }
+      return block_write(blk, tmp_dirent);
 }
 
 
