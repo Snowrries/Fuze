@@ -1264,39 +1264,48 @@ int sfs_mkdir(const char *path, mode_t mode)
 
 
 
-
-int rmdir_help(direntry entry, int block_[], int size){
+//Returns 0 on success.
+//-1 on weird failure
+//-2 on the inode not being found in the direntries stored in the given array of blocks.
+int rmdir_help(int inode, int block_[], int size){
 	int block;
 	direntry buffarr[16];
 	int i;
 	int j;
+	int erase = 1; //If this flag remains set after our inner for loop, remove the block!
+	int found = 0; //Didn't find our inode to remove yet. Keep looking
 	for(i = 0; i<size; i++){
 	//Check if we have an unallocated block.
-		if(block = block_[i] < 0){//If this is >=0, it will set block and fall through to the else.
-			block = get_free_block();
-			blkarr[i] = block;
-			buffarr =  malloc(16*(sizeof(direntry)));
-			buffarr[0] = entry;
-			for(j = 1; j<16; j++){//Set inode_numbers to -1 so we can tell where we have free direntry spaces on next call.
-				buffarr[j].inode_number = -1;
-			}
-			block_write(block, buffarr);
-			return block;
-		}
-		//check every entry in block.
-		else{
+		if(block = block_[i] > 0){
+		//check every entry in block if it it's allocated
 			if(block_read(block, buffarr) < 0){
 				return -1;
 			}
 			for(j = 0; j < 16; j++){
-				if(buffarr[j].inode_number < 0){//We init the blocks to have -1 as all the available direntry's inode numbers. 
-					buffarr[j] = entry;
-					block_write(block, buffarr);
-					return block;
+				if(buffarr[j].inode_number == inode){
+					//Do the removal work
+					buffarr[j].inode_number = -1;
+					inode_bitmap[inode] = 0;
+					found = 1;
 				}
+				
+				else if(buffarr[j].inode_number != -1){
+					//something's here and it isn't our inode.
+					erase = 0;
+				}
+			}
+			//Two things. We found our inode or we didn't. This directory is empty now or it isn't.
+			if(found){
+				if(erase){
+					block_[i] = -1;
+					data_bitmap[block] = 0;
+				}
+				return 0; //Success!
 			}
 		}
 	}
+	return -2;
+	//Looked through the blocks and couldn't find anything ;<
 }
 
 
@@ -1322,7 +1331,10 @@ int sfs_rmdir(const char *path)
     int curblock;
     int tmpblk;
     int i;
+    int res;
     direntry buf[16];
+    char* buf[BLOCK_SIZE];
+    char* buf2[BLOCK_SIZE];
     if(curnode = get_inode(path) < 0){
     	return -1;
     }
@@ -1348,12 +1360,33 @@ int sfs_rmdir(const char *path)
     parentnode = buf[1]; //Assured that this is parent. We set this on directory creation.
     //Consider locking bitmap access?
     //Remove block number from bitmap.
-    
-    //Find curnode in parentnode's direntrys.
-    
-    
-    
-    
+    data_bitmap[tmpblk] = 0;
+    //Find curnode in parentnode's direntries.
+    //int rmdir_help(int inode to remove, int pointer to a list of blocks [], int size of block array){
+    if(res = rmdir_help(curnode, parent.direct, DIRECT_SIZE) == -2){
+    	if(block_read(parent.single_indirect, buf) < 0){
+    		return -1;
+    	}
+    	if(res = rmdir_help(curnode, buf, BLOCK_SIZE) == -2){
+    		if(block_read(parent.double_indirect, buf2) < 0){
+    		return -1;
+	 	}
+	 	for(i = 0; i < 128; i++){
+	 		if(block_read(buf2[i], buf) < 0){
+		    		return -1;
+		    	}
+		    	if(res = rmdir_help(curnode, buf, BLOCK_SIZE) != -2){
+		    		break;
+		    	}
+	 	}
+    	}
+    }
+    else {
+    	if(res == -2){
+    		return -1;
+    	}
+    	return res;
+    }
 }
 
 
