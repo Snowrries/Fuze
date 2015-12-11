@@ -35,6 +35,12 @@ However, each directory access becomes much more inefficient,
 Searching through indirect blocks also takes up resources since it is a linear operation, 
 and could potentially lead to geological run times in edge cases.
 
+We have helper functions to manage the internal data of our file system
+get_inode takes a path and returns the inode number of the path if it's found.
+If it isn't found, it'll return a negative number.
+
+
+
 
 Issues
 -----------
@@ -43,5 +49,9 @@ If a file is created, on a remount of the directory, the file system cannot hand
 No synchronization; changes to the inode table are not protected
 
 Linear search times massively slow down performance.
+
+Fuse does not call sfs_create after failing to find the inode in getattr. 
+We do not want to manually call sfs_create, since we would be creating files whenever we getattr a nonexistant file
+That is not intended. 
   
 
