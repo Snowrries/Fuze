@@ -128,9 +128,9 @@ int get_inode(const char *path){//Returns the inode_number of an inode
 	int cur_inode_number = 0; //Start at root!
 	int running = strlen(path);
 	inode curnode;
-	char patho[running];
-  	strncpy(patho, path, running);
-  	//char *root = "/";
+	char patho[running + 1];
+  strncpy(patho, path, running);
+  patho[running] = '/';
 	int found = 0 ;
 	char buffer[PATH_MAX];
 	int result;
@@ -144,6 +144,7 @@ int get_inode(const char *path){//Returns the inode_number of an inode
 //    		return 0;
 //	}
 	while((num = (num + parse_path(&patho[num], buffer) + 1) ) < running){
+  log_msg("Num: %d ", num);
 	//Fuse truncates all ending slashes for some reason. Thus, we pad the given path with a trailing slash.
 	//Then, we now have a normalized representation of a path, where every segment has a trailing /. 
 	//Path always ends in a /. At the last segment of the path, it'll return -1.
@@ -153,7 +154,7 @@ int get_inode(const char *path){//Returns the inode_number of an inode
 	//If path is valid, this is always a directory until the very end.
     log_msg("Parsed_Path: %s \n",buffer);
 		curnode = in_table[cur_inode_number];
-    log_msg("Inode Number %d \n",curnode);
+    log_msg("Inode Number %d \n",cur_inode_number);
 		if(curnode.inodetype == IFILE){
 			if(num < running){
 				//There is more path, but we hit a file... That's an error.
@@ -255,11 +256,12 @@ int parse_path(const char *path, char* buffer){
 		i++;
 		if(i == pathlen+1){ //pathlen is the length of the path minus the null byte, if there is one. 
 		//If we read to the null byte, and there wasn't a / preceding it, this path is invalid.
+      log_msg("Parse Path returns -1\n");
 			return -1;
 		}
 	}
   	buffer[i] = '/';
-	buffer[i+1] = '\0';
+	 buffer[i+1] = '\0';
   	log_msg("In parsed path: %s",buffer);
 	//the return value is the number of characters up to the ending /.
 	// input: forexample/ would return 10.
@@ -493,6 +495,7 @@ void *sfs_init(struct fuse_conn_info *conn)
  //Writes all the inode data to blocks- basically a save operation. 
 void sfs_destroy(void *userdata)
 {
+    int b;
     log_msg("\nsfs_destroy(userdata=0x%08x)\n", userdata);
     //save data bitmap
     if(block_write(1, data_bitmap)>0){
