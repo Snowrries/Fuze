@@ -96,19 +96,20 @@ direntry init_direntry(int n, char *name){
 int get_inode_fragment(char* frag, int direct){
 	direntry dirArray[16]; //512 bytes / block and 32 bytes/direntry. 16 direntries in a dirArray
 	log_msg("Entering get frag:%s, block:%d ",frag,direct);
-  int result = 0;
+	int result = 0;
 	int j;
 	char buffer[PATH_MAX];
-  log_msg("Entering inode frag\n");
+  	log_msg("Entering inode frag\n");
 	if(result = block_read(direct, dirArray) <= 0){
-    log_msg("Failed to read\n");
+    		log_msg("Failed to read\n");
 		return -1; //Couldn't read?
 	}
-	memset(buffer, 0, PATH_MAX);
-	memcpy(buffer,frag,sizeof(frag));
+	//memset(buffer, 0, PATH_MAX);
+	//memcpy(buffer,frag,sizeof(frag));
+
 	for(j = 0; j < 16; j++){
-		if(!strncmp(dirArray[j].name, buffer, 27)){
-      log_msg("Found block, %d \n",dirArray[j].inode_number);
+		if(!strncmp(dirArray[j].name, frag, 27)){
+			log_msg("Found block, %d \n",dirArray[j].inode_number);
 			return dirArray[j].inode_number;
 		}
 	}
