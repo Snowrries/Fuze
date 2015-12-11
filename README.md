@@ -54,4 +54,4 @@ Fuse does not call sfs_create after failing to find the inode in getattr.
 We do not want to manually call sfs_create, since we would be creating files whenever we getattr a nonexistant file
 That is not intended. 
   
-
+Init and readdir works.
