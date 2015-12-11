@@ -112,7 +112,7 @@ int get_inode_fragment(char* frag, int direct){
 	//memcpy(buffer,frag,sizeof(frag));
 
 	for(j = 0; j < 16; j++){
-		log_msg(" j: %d |  dirArray[j].name: %s | frag: %s \n", j, dirArray[j].name, frag);
+	//	log_msg(" j: %d |  dirArray[j].name: %s | frag: %s \n", j, dirArray[j].name, frag);
 		if(!strncmp(dirArray[j].name, frag, 27)){
 			log_msg("Found block, %d \n",dirArray[j].inode_number);
 			return dirArray[j].inode_number;
