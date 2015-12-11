@@ -100,6 +100,10 @@ int get_inode_fragment(char* frag, int direct){
 	int j;
 	char buffer[PATH_MAX];
   	log_msg("Entering inode frag\n");
+  	if(direct < 0){
+  		log_msg("Invalid block number");
+  		return -1;
+  	}
 	if(result = block_read(direct, dirArray) <= 0){
     		log_msg("Failed to read\n");
 		return -1; //Couldn't read?
@@ -129,8 +133,8 @@ int get_inode(const char *path){//Returns the inode_number of an inode
 	int running = strlen(path);
 	inode curnode;
 	char patho[running + 1];
-  strncpy(patho, path, running);
-  patho[running] = '/';
+  	strncpy(patho, path, running);
+  	patho[running] = '/';
 	int found = 0 ;
 	char buffer[PATH_MAX];
 	int result;
@@ -144,7 +148,7 @@ int get_inode(const char *path){//Returns the inode_number of an inode
 //    		return 0;
 //	}
 	while((num = (num + parse_path(&patho[num], buffer) + 1) ) < running){
-  log_msg("Num: %d ", num);
+  	log_msg("Num: %d ", num);
 	//Fuse truncates all ending slashes for some reason. Thus, we pad the given path with a trailing slash.
 	//Then, we now have a normalized representation of a path, where every segment has a trailing /. 
 	//Path always ends in a /. At the last segment of the path, it'll return -1.
@@ -152,9 +156,9 @@ int get_inode(const char *path){//Returns the inode_number of an inode
 	//We end when we've parsed all the path.
 	//Starting at root directory. Read dirents.
 	//If path is valid, this is always a directory until the very end.
-    log_msg("Parsed_Path: %s \n",buffer);
+    	log_msg("Parsed_Path: %s \n",buffer);
 		curnode = in_table[cur_inode_number];
-    log_msg("Inode Number %d \n",cur_inode_number);
+    	log_msg("Inode Number %d \n",cur_inode_number);
 		if(curnode.inodetype == IFILE){
 			if(num < running){
 				//There is more path, but we hit a file... That's an error.
@@ -226,8 +230,9 @@ int get_inode(const char *path){//Returns the inode_number of an inode
 				}
 			}
 		}
+		log_msg("Get_inode_number File existance. %d\n", result);
 		if(result == -2){
-			log_msg("File does not exist. Path: %s", path);
+			log_msg("File does not exist. Path: %s\n", path);
 			return -4;
 			//Ridiculous. Doesn't exist in the direct, indirect, and double indirect... And they were all full!
 		}
