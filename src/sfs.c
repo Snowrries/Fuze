@@ -171,7 +171,7 @@ int get_inode(const char *path){//Returns the inode_number of an inode
 		//Guaranteed to be a directory
 		
 		for(i = 0; i < DIRECT_SIZE; i++){
-			if(result = get_inode_fragment(buffer, curnode.direct[i]) == -1){
+			if((result = get_inode_fragment(buffer, curnode.direct[i])) == -1){
 				if(num < running){
 					//There is more path, but we can't find the directory... That's an error.
 					log_msg("Invalid path! Path: %s", path);
@@ -192,7 +192,7 @@ int get_inode(const char *path){//Returns the inode_number of an inode
 			for(i = 0; i<128; i++){
 				//buf is an int array of length 128. 
 				
-				if(result = get_inode_fragment(buffer,buf[i]) == -1){
+				if((result = get_inode_fragment(buffer,buf[i])) == -1){
 					if(num < running){
 						//There is more path, but we can't find the directory... That's an error.
 						log_msg("Invalid path! Path: %s", path);
@@ -212,7 +212,7 @@ int get_inode(const char *path){//Returns the inode_number of an inode
 			for(i = 0; i<128; i++){
 				block_read(buf[i], buf2);
 				for (j = 0; j < 128; j++){
-					if(result = get_inode_fragment(buffer, buf2[j]) == -1){
+					if((result = get_inode_fragment(buffer, buf2[j])) == -1){
 						if(num < running){
 							//There is more path, but we can't find the directory... That's an error.
 							log_msg("Invalid path! Path: %s", path);
