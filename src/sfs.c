@@ -490,9 +490,32 @@ void *sfs_init(struct fuse_conn_info *conn)
  *
  * Introduced in version 2.3
  */
+ //Writes all the inode data to blocks- basically a save operation. 
 void sfs_destroy(void *userdata)
 {
     log_msg("\nsfs_destroy(userdata=0x%08x)\n", userdata);
+    //save data bitmap
+    if(block_write(1, data_bitmap)>0){
+       log_msg("\n Successful Data bitmap write");
+    }
+
+    //Save Inode Bitmap
+    if(block_write(2, inode_bitmap)>0){
+       log_msg("\n Successful inode bitmap write");
+    }
+	inode buffer[4];
+	int k = 0;
+    for (b = 3;b < INODE_TLB_BLKS + 3; ++b){
+    	buffer[0] = in_table[k];
+    	buffer[1] = in_table[k+1];
+    	buffer[2] = in_table[k+2];
+    	buffer[3] = in_table[k+3];
+    	
+      if(block_write(b, buffer) > 0){
+        k = k+4;
+        log_msg("\n Successful Inode Table write");
+        }
+    }
     disk_close();
 }
 
