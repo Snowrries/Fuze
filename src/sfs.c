@@ -89,7 +89,7 @@ direntry init_direntry(int n, char *name){
 //The superblock operations table is represented by struct super_operations and is defined in <linux/fs.h>. 
 
 //Inode adventures.
-//get_inode_fragment takes an array of 22 block pointers. These are guaranteed to be pointers to 16 direntry structs.
+//get_inode_fragment takes a block pointer. These are guaranteed to be pointers to 16 direntry structs.
 //If any link directly to the requested path fragment, it will return 0. 
 //If it doesn't exist and will not be in the indirect nodes, it will return -1. 
 //If it doesn't exist but might be in an indirect, it will return 1.
@@ -129,7 +129,7 @@ int get_inode(const char *path){//Returns the inode_number of an inode
 	int running = strlen(path);
 	inode curnode;
 	char patho[running];
-  strncpy(patho, path, running);
+  	strncpy(patho, path, running);
   	//char *root = "/";
 	int found = 0 ;
 	char buffer[PATH_MAX];
@@ -140,18 +140,17 @@ int get_inode(const char *path){//Returns the inode_number of an inode
 	int buf[128];
 	int buf2[128];
 	log_msg("Get Inode %d\n",running);
-  //if (strncmp(path, root, PATH_MAX) == 0){
-//    return 0;
-  //}
+//	if (strncmp(path, root, PATH_MAX) == 0){
+//    		return 0;
+//	}
 	while((num = (num + parse_path(&patho[num], buffer) + 1) ) < running){
-		//Fuse truncates all ending slashes for some reason. Thus, we pad the given path with a trailing slash.
-		//Then, we now have a normalized representation of a path, where every segment has a trailing /. 
-		
-	//Path always ends in a /. At the last bit of the path, it'll return -1.
+	//Fuse truncates all ending slashes for some reason. Thus, we pad the given path with a trailing slash.
+	//Then, we now have a normalized representation of a path, where every segment has a trailing /. 
+	//Path always ends in a /. At the last segment of the path, it'll return -1.
 	//That is, we found 'something/', or just '/'. if we find 'something', that's considered nothing.
 	//We end when we've parsed all the path.
-		//Starting at root directory. Read dirents.
-		//If path is valid, this is always a directory until the very end.
+	//Starting at root directory. Read dirents.
+	//If path is valid, this is always a directory until the very end.
     log_msg("Parsed_Path: %s \n",buffer);
 		curnode = in_table[cur_inode_number];
     log_msg("Inode Number %d \n",curnode);
@@ -165,7 +164,6 @@ int get_inode(const char *path){//Returns the inode_number of an inode
 		}
 		//Guaranteed to be a directory
 		
-
 		for(i = 0; i < DIRECT_SIZE; i++){
 			if(result = get_inode_fragment(buffer, curnode.direct[i]) == -1){
 				if(num < running){
@@ -260,12 +258,14 @@ int parse_path(const char *path, char* buffer){
 			return -1;
 		}
 	}
-  buffer[i] = '/';
-	//buffer[i+1] = '\0';
-  log_msg("In parsed path:%s",buffer);
+  	buffer[i] = '/';
+	buffer[i+1] = '\0';
+  	log_msg("In parsed path: %s",buffer);
 	//the return value is the number of characters up to the ending /.
 	// input: forexample/ would return 10.
 	// input: / would return 0.
+	// Buffer is padded with a null byte.
+	
 	return i;
 }
 //Copies the path of the parent to buf.
