@@ -35,5 +35,13 @@ However, each directory access becomes much more inefficient,
 Searching through indirect blocks also takes up resources since it is a linear operation, 
 and could potentially lead to geological run times in edge cases.
 
+
+Issues
+-----------
+If a file is created, on a remount of the directory, the file system cannot handle it.
+
+No synchronization; changes to the inode table are not protected
+
+Linear search times massively slow down performance.
   
 
